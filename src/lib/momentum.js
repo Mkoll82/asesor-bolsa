@@ -17,6 +17,10 @@ export const DEFAULT_CFG = {
   commissionBps: 0,
   commissionFixed: 1, // euros por orden
   capital: 10000, // referencia para convertir la comision fija a porcentaje
+  // Banda de tolerancia del reajuste de pesos, en tanto por uno. Con 0.05, un
+  // activo que deberia pesar el 33% se deja en paz mientras este entre el 28%
+  // y el 38%. Los cambios de activo se ejecutan siempre, al margen de esto.
+  rebalanceBand: 0.05,
   benchmark: 'SPY',
 }
 

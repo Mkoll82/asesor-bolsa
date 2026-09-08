@@ -45,7 +45,6 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
   const equity = []
   const trades = []
   const rebalances = []
-  let currentWeights = {}
   let totalCost = 0
 
   const rebalanceSet = new Set(monthEnds)
@@ -66,7 +65,46 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
     if (rebalanceSet.has(i)) {
       const rows = rankAt(aligned, i, cfg)
       const target = targetWeights(rows, cfg)
-      const orders = ordersFrom(currentWeights, target)
+
+      // Pesos que tiene la cartera ahora mismo, tras la deriva del mes.
+      const actuales = {}
+      for (const [sym, v] of Object.entries(positions)) {
+        if (equityVal) actuales[sym] = v / equityVal
+      }
+      if (cash > 1e-9 && equityVal) actuales[cfg.cashSymbol] = (actuales[cfg.cashSymbol] || 0) + cash / equityVal
+
+      // Banda de tolerancia: un cambio de activo se ejecuta siempre, pero la
+      // simple deriva de pesos solo se corrige si alguno se ha desviado mas de
+      // la banda. Sin esto se pagan comisiones todos los meses por mover
+      // cantidades minimas, y con una comision fija por orden eso puede costar
+      // mas que el beneficio de tener la cartera perfectamente cuadrada.
+      const banda = cfg.rebalanceBand || 0
+      const enTarget = Object.keys(target).filter((s) => target[s] > 1e-9).sort()
+      const enCartera = Object.keys(actuales).filter((s) => actuales[s] > 1e-6).sort()
+      const mismoConjunto = enTarget.join(',') === enCartera.join(',')
+      let maxDesvio = 0
+      for (const sym of new Set([...enTarget, ...enCartera])) {
+        maxDesvio = Math.max(maxDesvio, Math.abs((target[sym] || 0) - (actuales[sym] || 0)))
+      }
+      const debeOperar = !mismoConjunto || maxDesvio > banda
+
+      if (!debeOperar) {
+        // No se toca nada: la cartera sigue como estaba y no hay coste.
+        rebalances.push({
+          date: dates[i],
+          weights: actuales,
+          picks: rows.filter((r) => r.eligible).map((r) => r.symbol),
+          turnover: 0,
+          ordenes: 0,
+          cost: 0,
+          omitido: true,
+          desvio: maxDesvio,
+        })
+        equity.push({ date: dates[i], v: equityVal })
+        continue
+      }
+
+      const orders = ordersFrom(actuales, target)
 
       let moved = 0
       const newPositions = {}
@@ -92,7 +130,6 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
 
       positions = newPositions
       cash = newCash
-      currentWeights = target
       equityVal = cash + Object.values(positions).reduce((a, b) => a + b, 0)
 
       rebalances.push({
@@ -133,6 +170,8 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
     // No cuenta el reajuste a pesos iguales, que ocurre todos los meses por la
     // simple deriva de los precios y no es una decision nueva.
     changes: countSetChanges(rebalances),
+    // Meses en los que la banda de tolerancia evito operar.
+    omitidos: rebalances.filter((r) => r.omitido).length,
     avgTurnover: rebalances.length
       ? rebalances.reduce((a, r) => a + r.turnover, 0) / rebalances.length
       : null,

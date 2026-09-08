@@ -26,6 +26,12 @@ export default function BacktestPanel({ settings, patch, aligned }) {
           cobran así: <b>Trade Republic son 0 pb + 1 €</b> por orden. Y el capital importa: 1 € por orden
           sobre 1.000 € es cien veces más caro, en porcentaje, que sobre 100.000 €.
         </p>
+        <p className="hint">
+          La <b>banda de reajuste</b> (en puntos porcentuales) evita pagar comisiones por cuadrar la
+          cartera al milímetro: con 5, un activo que debería pesar el 33% se deja en paz mientras esté
+          entre el 28% y el 38%. Los cambios de activo se ejecutan siempre, al margen de la banda. Sube o
+          baja el número y mira «Meses sin tocar» y «Comisiones» para ver cuánto ahorra de verdad.
+        </p>
         <div className="row">
           <label className="field">
             Nº de posiciones
@@ -87,6 +93,17 @@ export default function BacktestPanel({ settings, patch, aligned }) {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="field">
+            Banda de reajuste
+            <input
+              type="number"
+              min="0"
+              max="50"
+              step="1"
+              value={Math.round((cfg.rebalanceBand || 0) * 100)}
+              onChange={(e) => setCfg({ rebalanceBand: Math.max(0, +e.target.value || 0) / 100 })}
+            />
           </label>
           <label className="check" style={{ marginTop: 16 }}>
             <input
@@ -163,6 +180,11 @@ export default function BacktestPanel({ settings, patch, aligned }) {
                 <div className="k">Rotación media</div>
                 <div className="v">{fmtPct(res.stats.avgTurnover, true)}</div>
                 <div className="n">de la cartera cada mes</div>
+              </div>
+              <div className="stat">
+                <div className="k">Meses sin tocar</div>
+                <div className="v">{res.stats.omitidos}</div>
+                <div className="n">la banda evitó operar</div>
               </div>
               <div className="stat">
                 <div className="k">Comisiones</div>
@@ -250,7 +272,9 @@ export default function BacktestPanel({ settings, patch, aligned }) {
                               ))}
                           </div>
                         </td>
-                        <td>{fmtPct(r.turnover, true)}</td>
+                        <td className={r.omitido ? 'muted' : ''}>
+                          {r.omitido ? 'sin tocar' : fmtPct(r.turnover, true)}
+                        </td>
                         <td className="muted">{r.ordenes ?? '—'}</td>
                         <td className="muted">{fmtEur(r.cost * efectiva.capital)}</td>
                       </tr>

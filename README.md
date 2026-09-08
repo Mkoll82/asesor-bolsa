@@ -26,6 +26,9 @@ Los resultados pasados no anticipan los futuros.
 3. Filtro de seguridad: un activo solo entra si cotiza **por encima de su media de 200 sesiones**. El
    hueco que deja va a **liquidez** (BIL, letras a 1-3 meses).
 4. Pesos iguales entre los elegidos. Se revisa una vez al mes y nada más.
+5. **Banda de reajuste**: los cambios de activo se ejecutan siempre, pero la simple deriva de pesos solo
+   se corrige si alguno se desvía más de la banda (5 puntos por defecto). Con una comisión fija por
+   orden, cuadrar la cartera al milímetro cada mes puede costar más de lo que vale.
 
 Todos los parámetros se cambian en la pestaña Backtest, y lo que cambies ahí afecta también a la señal:
 el backtest prueba exactamente la regla que después te dice qué comprar.
@@ -42,7 +45,7 @@ de mercado común para que las correlaciones sean realistas): sirve para ver la 
 decidir nada.
 
 ```bash
-npm test          # 42 pruebas del motor: indicadores, backtest, comisiones y contabilidad
+npm test          # 45 pruebas del motor: indicadores, backtest, comisiones y contabilidad
 npm run build     # genera dist/ como sitio estático
 ```
 

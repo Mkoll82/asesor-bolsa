@@ -508,3 +508,61 @@ test('backtest: startDate arranca la regla el dia que empezaste tu', () => {
   assert.ok(parcial.equity.length < completo.equity.length)
   assert.ok(Math.abs(parcial.equity[0].v - 1) < 0.02, 'la curva parcial empieza en base 1')
 })
+
+// --- Banda de tolerancia del reajuste ---------------------------------------
+
+test('banda: sin banda se opera todos los meses, con banda se omiten', () => {
+  const al = alignSeries(demoBars(SYMS, 1500))
+  const sin = runBacktest(al, { ...DEFAULT_CFG, rebalanceBand: 0 })
+  const con = runBacktest(al, { ...DEFAULT_CFG, rebalanceBand: 0.05 })
+  assert.equal(sin.stats.omitidos, 0, 'sin banda no se omite ningun mes')
+  assert.ok(con.stats.omitidos > 0, `con banda deberia omitir meses, omitio ${con.stats.omitidos}`)
+  assert.ok(
+    con.stats.avgTurnover < sin.stats.avgTurnover,
+    `rotacion ${con.stats.avgTurnover} deberia ser menor que ${sin.stats.avgTurnover}`
+  )
+  assert.ok(con.stats.totalCost < sin.stats.totalCost, 'y deberia costar menos en comisiones')
+})
+
+test('banda: los cambios de activo se ejecutan aunque la banda sea enorme', () => {
+  const al = alignSeries(demoBars(SYMS, 1500))
+  const enorme = runBacktest(al, { ...DEFAULT_CFG, rebalanceBand: 1 })
+  const normal = runBacktest(al, { ...DEFAULT_CFG, rebalanceBand: 0 })
+  // Con banda 1 solo se opera cuando entra o sale un activo, nunca por deriva.
+  assert.ok(enorme.stats.changes > 0, 'deberia seguir habiendo cambios de activo')
+  assert.equal(
+    enorme.stats.changes,
+    normal.stats.changes,
+    'la banda no puede alterar QUE activos elige la regla, solo cuando se reajusta'
+  )
+  assert.ok(enorme.stats.omitidos > 0)
+  // Todo mes que no se omite es porque de verdad habia ordenes que dar.
+  for (const r of enorme.rebalances) {
+    if (r.omitido) assert.equal(r.ordenes, 0)
+    else assert.ok(r.ordenes > 0, `${r.date} operó sin ordenes`)
+  }
+  assert.equal(
+    enorme.rebalances.filter((r) => r.omitido).length + enorme.rebalances.filter((r) => !r.omitido).length,
+    enorme.stats.rebalances
+  )
+})
+
+test('banda: en el simulador se ignora la deriva pequena pero no la entrada', () => {
+  const al = alignSeries(demoBars(SYMS, 900))
+  const i = al.dates.length - 1
+  const priceOf = (s) => al.closes[s][i]
+  const opts = { minTicket: 1, commissionBps: 0, commissionFixed: 0, rebalanceBand: 0.05 }
+
+  // Cartera con SPY al 100%; objetivo 97% SPY y 3% GLD.
+  const paper = {
+    startCapital: 10000,
+    log: [
+      makeOp({ date: al.dates[i], symbol: 'SPY', action: BUY, units: 10000 / priceOf('SPY'), price: priceOf('SPY') }),
+    ],
+  }
+  const v = valuate(paper, priceOf)
+  const ordenes = ordersToReach({ SPY: 0.97, GLD: 0.03 }, v, priceOf, opts)
+  const simbolos = ordenes.map((o) => o.symbol)
+  assert.ok(simbolos.includes('GLD'), 'entrar en un activo nuevo se hace siempre')
+  assert.ok(!simbolos.includes('SPY'), 'un 3% de deriva en SPY queda dentro de la banda')
+})

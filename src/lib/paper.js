@@ -145,6 +145,7 @@ function calcularOrdenes(targetWeights, valuation, priceOf, opts, reservaFija) {
   const minTicket = opts.minTicket ?? 25
   const reservaPct = 1 - (2 * (opts.commissionBps ?? 0)) / 10000
   const equity = Math.max(0, valuation.equity * reservaPct - reservaFija)
+  const banda = opts.rebalanceBand || 0
   const out = []
   const syms = new Set([...Object.keys(targetWeights), ...Object.keys(valuation.weights)])
   for (const symbol of syms) {
@@ -152,7 +153,13 @@ function calcularOrdenes(targetWeights, valuation, priceOf, opts, reservaFija) {
     if (price == null) continue
     const held = valuation.rows.find((r) => r.symbol === symbol)
     const currentValue = held?.value || 0
-    const diff = (targetWeights[symbol] || 0) * equity - currentValue
+    const pesoObjetivo = targetWeights[symbol] || 0
+    const pesoActual = valuation.weights[symbol] || 0
+    // Entrar en un activo nuevo o salir de uno se hace siempre. Corregir la
+    // deriva de un activo que ya esta en la cartera, solo si supera la banda.
+    const esCambioDeActivo = pesoObjetivo < 1e-9 || pesoActual < 1e-6
+    if (!esCambioDeActivo && Math.abs(pesoObjetivo - pesoActual) <= banda) continue
+    const diff = pesoObjetivo * equity - currentValue
     if (Math.abs(diff) < minTicket) continue
     const isBuy = diff > 0
     let units = Math.abs(diff) / price
