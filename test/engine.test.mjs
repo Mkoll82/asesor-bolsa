@@ -7,7 +7,8 @@ import { rankAt, targetWeights, ordersFrom, DEFAULT_CFG, breadth } from '../src/
 import { runBacktest } from '../src/lib/backtest.js'
 import { valuate, replayEquity, ordersToReach, makeOp, BUY, SELL } from '../src/lib/paper.js'
 import { demoBars } from '../src/data/demo.js'
-import { DEFAULT_UNIVERSE } from '../src/data/universe.js'
+import { DEFAULT_UNIVERSE, compraFor } from '../src/data/universe.js'
+import { BROKERS_DEFAULT, costeOrden, comparar, costeAnual } from '../src/lib/brokers.js'
 
 const SYMS = DEFAULT_UNIVERSE.map((u) => u.symbol)
 
@@ -274,4 +275,122 @@ test('demo: series deterministas, positivas y con calendario habil', () => {
     const dow = new Date(bar.date).getUTCDay()
     assert.ok(dow !== 0 && dow !== 6, `${bar.date} cae en fin de semana`)
   }
+})
+
+// --- Comisiones por broker y su efecto en la regla ---------------------------
+
+test('brokers: Trade Republic cobra 1 € sea grande o pequena la orden', () => {
+  const tr = BROKERS_DEFAULT.traderepublic
+  assert.equal(costeOrden(tr, 100), 1)
+  assert.equal(costeOrden(tr, 10000), 1)
+})
+
+test('brokers: Revolut aplica gratis del mes, porcentaje y minimo', () => {
+  const rv = BROKERS_DEFAULT.revolut
+  assert.equal(costeOrden(rv, 1000, 0), 0, 'la primera del mes es gratis')
+  assert.equal(costeOrden(rv, 1000, 1), 2.5, '0,25% de 1000')
+  assert.equal(costeOrden(rv, 100, 1), 1, 'se aplica el minimo de 1 €')
+})
+
+test('brokers: la comparativa ordena de mas barato a mas caro', () => {
+  const ordenes = [
+    { symbol: 'A', amount: 3000 },
+    { symbol: 'B', amount: 3000 },
+    { symbol: 'C', amount: 3000 },
+  ]
+  const filas = comparar(BROKERS_DEFAULT, ordenes)
+  assert.ok(filas[0].total <= filas[1].total)
+  const tr = filas.find((f) => f.broker.id === 'traderepublic')
+  const rv = filas.find((f) => f.broker.id === 'revolut')
+  assert.equal(tr.total, 3, 'tres ordenes a 1 €')
+  assert.equal(rv.total, 15, 'la primera gratis y dos al 0,25% de 3000')
+  assert.equal(filas[0].broker.id, 'traderepublic')
+})
+
+test('brokers: el coste anual multiplica por doce y se mide contra el patrimonio', () => {
+  const { anual, pctPatrimonio } = costeAnual(
+    BROKERS_DEFAULT.traderepublic,
+    [{ amount: 500 }, { amount: 500 }],
+    10000
+  )
+  assert.equal(anual, 24)
+  assert.ok(Math.abs(pctPatrimonio - 0.0024) < 1e-12)
+})
+
+test('backtest: la comision fija duele mucho mas con poco capital', () => {
+  const al = alignSeries(demoBars(SYMS, 1500))
+  const base = { ...DEFAULT_CFG, commissionBps: 0, commissionFixed: 1 }
+  const rico = runBacktest(al, { ...base, capital: 50000 })
+  const pobre = runBacktest(al, { ...base, capital: 1000 })
+  assert.ok(
+    rico.stats.finalMultiple > pobre.stats.finalMultiple,
+    `${rico.stats.finalMultiple} deberia superar a ${pobre.stats.finalMultiple}`
+  )
+  // El coste en euros es el mismo; lo que cambia es cuanto pesa.
+  assert.ok(Math.abs(rico.stats.totalCostEuros - pobre.stats.totalCostEuros) < 1e-6)
+  assert.ok(pobre.stats.totalCost > rico.stats.totalCost * 40)
+})
+
+test('backtest: sin comision de ningun tipo no se cobra nada', () => {
+  const al = alignSeries(demoBars(SYMS, 1500))
+  const res = runBacktest(al, { ...DEFAULT_CFG, commissionBps: 0, commissionFixed: 0 })
+  assert.ok(Math.abs(res.stats.totalCost) < 1e-12)
+})
+
+test('paper: makeOp suma la parte fija a la porcentual', () => {
+  const op = makeOp({
+    date: '2024-01-02',
+    symbol: 'SPY',
+    action: BUY,
+    units: 10,
+    price: 100,
+    commissionBps: 10,
+    commissionFixed: 1,
+  })
+  assert.ok(Math.abs(op.fee - 2) < 1e-12, `comision ${op.fee}, esperada 2`)
+})
+
+test('paper: con comision fija la liquidez sigue sin quedar negativa', () => {
+  const al = alignSeries(demoBars(SYMS, 900))
+  const i = al.dates.length - 1
+  const priceOf = (s) => al.closes[s][i]
+  const target = { SPY: 1 / 3, GLD: 1 / 3, TLT: 1 / 3 }
+  let paper = { startCapital: 2000, log: [] }
+
+  const opts = { minTicket: 25, commissionBps: 0, commissionFixed: 1 }
+  const ordenes = ordersToReach(target, valuate(paper, priceOf), priceOf, opts)
+  assert.equal(ordenes.length, 3)
+  paper = {
+    ...paper,
+    log: ordenes.map((o) =>
+      makeOp({
+        date: al.dates[i],
+        symbol: o.symbol,
+        action: o.action,
+        units: o.units,
+        price: o.price,
+        commissionBps: 0,
+        commissionFixed: 1,
+      })
+    ),
+  }
+  const v = valuate(paper, priceOf)
+  assert.ok(v.cash >= 0, `liquidez ${v.cash}`)
+  assert.ok(Math.abs(v.fees - 3) < 1e-12, `comisiones ${v.fees}, esperadas 3`)
+})
+
+test('compraFor: no inventa ISIN y lo que pega el usuario manda', () => {
+  const spy = compraFor('SPY')
+  assert.equal(spy.isin, 'IE00B5BMR087')
+  assert.equal(spy.verificado, true)
+
+  const iwm = compraFor('IWM')
+  assert.equal(iwm.isin, '', 'los ISIN que no conozco quedan vacios, no inventados')
+  assert.equal(iwm.verificado, false)
+  assert.ok(iwm.buscar, 'pero si hay un termino de busqueda')
+
+  const mio = compraFor('IWM', { IWM: { isin: 'IE00B3VWM098', ticker: 'IUS3' } })
+  assert.equal(mio.isin, 'IE00B3VWM098')
+  assert.equal(mio.verificado, true, 'si lo pega el usuario, cuenta como visto en su broker')
+  assert.equal(mio.propio, true)
 })

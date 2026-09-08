@@ -10,7 +10,11 @@ import { maxDrawdown, cagr, annualVol } from './indicators.js'
 //    datos hasta i incluido.
 //  - Pesos iguales entre los elegibles; el resto del capital va al activo de
 //    liquidez (si no esta en los datos, la liquidez renta 0%).
-//  - Comision en puntos basicos sobre el importe movido en cada rebalanceo.
+//  - Comision en dos partes: puntos basicos sobre el importe movido mas una
+//    cantidad fija por orden. La fija se expresa como fraccion del capital
+//    inicial, porque la curva esta en base 1 = capital inicial; asi 1 € sobre
+//    10.000 € son siempre 0,0001 unidades, y con 1.000 € de capital pesa diez
+//    veces mas. Es la diferencia entre que la regla salga rentable o no.
 //  - No modela dividendos aparte: los precios del proveedor son de cierre
 //    ajustado o no segun el plan, asi que la rentabilidad puede quedarse corta.
 //  - No modela deslizamiento ni impuestos.
@@ -26,6 +30,8 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
   if (monthEnds.length < 3) return { error: 'Menos de 3 cierres de mes utilizables.' }
 
   const comm = cfg.commissionBps / 10000
+  // 1 € sobre el capital inicial, en las unidades de la curva.
+  const fijoUnidades = (cfg.commissionFixed || 0) / (cfg.capital || 10000)
   const start = monthEnds[0]
 
   let positions = {} // { sym: valor en euros }
@@ -72,7 +78,7 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
       for (const sym of new Set([...Object.keys(positions), ...Object.keys(newPositions)])) {
         moved += Math.abs((newPositions[sym] || 0) - (positions[sym] || 0))
       }
-      const cost = moved * comm
+      const cost = moved * comm + orders.length * fijoUnidades
       totalCost += cost
       // La comision se descuenta proporcionalmente de lo que queda invertido.
       const scale = (equityVal - cost) / (equityVal || 1)
@@ -89,6 +95,7 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
         weights: target,
         picks: rows.filter((r) => r.eligible).map((r) => r.symbol),
         turnover: moved,
+        ordenes: orders.length,
         cost,
       })
       for (const o of orders) trades.push({ date: dates[i], ...o })
@@ -125,6 +132,8 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
       ? rebalances.reduce((a, r) => a + r.turnover, 0) / rebalances.length
       : null,
     totalCost,
+    // Lo mismo en euros, que es como se entiende de verdad.
+    totalCostEuros: totalCost * (cfg.capital || 10000),
     trades: trades.length,
   }
   stats.sharpe = stats.vol ? stats.cagr / stats.vol : null

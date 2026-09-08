@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import Chart from './Chart.jsx'
 import { sma, rsi, macd, atr, totalReturn, annualVol, drawdownFromHigh } from '../lib/indicators.js'
 import { metaFor } from '../data/universe.js'
+import CodigoCompra from './CodigoCompra.jsx'
 import { fmtDate, fmtNum, fmtPct, signClass } from '../lib/format.js'
 
 const RANGOS = [
@@ -145,6 +146,16 @@ export default function AssetDetail({ settings, data, selected, setSelected }) {
             <div className="n">anualizada</div>
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Cómo comprarlo</h2>
+        <p className="hint">
+          {symbol} cotiza en EE. UU. y sirve para calcular la señal, pero no lo puedes comprar desde
+          Europa: la normativa PRIIPs se lo impide a los minoristas. Esto es el equivalente UCITS que sí
+          puedes buscar en el bróker.
+        </p>
+        <CodigoCompra symbol={symbol} compras={settings.compras} />
       </div>
 
       <div className="card">

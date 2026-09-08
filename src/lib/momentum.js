@@ -11,7 +11,12 @@ export const DEFAULT_CFG = {
   requireAboveTrend: true,
   topN: 3,
   cashSymbol: 'BIL', // donde va el peso que no se invierte
-  commissionBps: 10, // 0.10% sobre el importe movido
+  // Comision en dos partes, porque los brokeRs europeos cobran asi:
+  // un porcentaje sobre el importe (pb) mas una cantidad fija por orden.
+  // El valor por defecto es el de Trade Republic: 0 pb + 1 € por orden.
+  commissionBps: 0,
+  commissionFixed: 1, // euros por orden
+  capital: 10000, // referencia para convertir la comision fija a porcentaje
   benchmark: 'SPY',
 }
 

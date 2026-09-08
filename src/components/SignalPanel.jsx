@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { rankAt, targetWeights } from '../lib/momentum.js'
 import { monthEndIndices, isLikelyMonthEnd } from '../lib/series.js'
 import { valuate, ordersToReach, makeOp } from '../lib/paper.js'
-import { metaFor } from '../data/universe.js'
+import { metaFor, compraFor } from '../data/universe.js'
+import { comparar, costeAnual } from '../lib/brokers.js'
+import CodigoCompra from './CodigoCompra.jsx'
 import { fmtDate, fmtEur, fmtNum, fmtPct, signClass, fmtUnits } from '../lib/format.js'
 
 export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf, openAsset }) {
@@ -32,8 +34,27 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
 
   const val = useMemo(() => valuate(settings.paper, priceOf), [settings.paper, priceOf])
   const orders = useMemo(
-    () => ordersToReach(target, val, priceOf, { minTicket: 25, commissionBps: cfg.commissionBps }),
-    [target, val, priceOf, cfg.commissionBps]
+    () =>
+      ordersToReach(target, val, priceOf, {
+        minTicket: 25,
+        commissionBps: cfg.commissionBps,
+        commissionFixed: cfg.commissionFixed,
+      }),
+    [target, val, priceOf, cfg.commissionBps, cfg.commissionFixed]
+  )
+
+  // Cuanto cuesta ejecutar este rebalanceo en cada broker.
+  const costes = useMemo(
+    () => (orders.length ? comparar(settings.brokers, orders) : []),
+    [orders, settings.brokers]
+  )
+
+  // Activos elegidos para los que todavia no hay ISIN confirmado: sin ese
+  // codigo la senal no se puede ejecutar en el broker.
+  const sinIsin = useMemo(
+    () =>
+      Object.keys(target).filter((sym) => !compraFor(sym, settings.compras).isin),
+    [target, settings.compras]
   )
 
   const drift = useMemo(() => {
@@ -53,6 +74,7 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
         units: o.units,
         price: o.price,
         commissionBps: cfg.commissionBps,
+        commissionFixed: cfg.commissionFixed,
         note: `señal ${aligned.dates[signalIdx]}`,
       })
     )
@@ -165,8 +187,12 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
           <div>
             <h2>Órdenes para llevar el simulador a la cartera objetivo</h2>
             <p className="hint" style={{ marginBottom: 0 }}>
-              Precios del {fmtDate(aligned.dates[lastIdx])}. Comisión aplicada: {cfg.commissionBps / 100}%.
-              Cartera simulada actual: {fmtEur(val.equity)}.
+              Precios del {fmtDate(aligned.dates[lastIdx])}. Comisión aplicada en el simulador:{' '}
+              {cfg.commissionBps ? `${cfg.commissionBps / 100}%` : ''}
+              {cfg.commissionBps && cfg.commissionFixed ? ' + ' : ''}
+              {cfg.commissionFixed ? `${fmtEur(cfg.commissionFixed)} por orden` : ''}
+              {!cfg.commissionBps && !cfg.commissionFixed ? 'ninguna' : ''}. Cartera simulada actual:{' '}
+              {fmtEur(val.equity)}.
             </p>
           </div>
           <button className="btn primary" onClick={execute} disabled={!orders.length}>
@@ -186,8 +212,8 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
                   <th>Títulos</th>
                   <th>Precio</th>
                   <th>Importe</th>
-                  <th>Peso actual</th>
                   <th>Peso objetivo</th>
+                  <th>Qué comprar en el bróker</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,8 +229,13 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
                     <td>{fmtUnits(o.units)}</td>
                     <td>{fmtNum(o.price)}</td>
                     <td>{fmtEur(o.amount)}</td>
-                    <td className="muted">{fmtPct(val.weights[o.symbol] || 0, true)}</td>
-                    <td>{fmtPct(target[o.symbol] || 0, true)}</td>
+                    <td>
+                      {fmtPct(target[o.symbol] || 0, true)}
+                      <div className="name">antes {fmtPct(val.weights[o.symbol] || 0, true)}</div>
+                    </td>
+                    <td style={{ textAlign: 'left' }}>
+                      <CodigoCompra symbol={o.symbol} compras={settings.compras} compacto />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -216,6 +247,109 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
           </div>
         )}
       </div>
+
+      {sinIsin.length > 0 && (
+        <div className="card">
+          <h2>Te faltan códigos para poder ejecutar esto</h2>
+          <p className="hint">
+            La cartera objetivo incluye {sinIsin.length === 1 ? 'un activo' : `${sinIsin.length} activos`} sin
+            ISIN confirmado. Sin ese código no lo vas a encontrar en el bróker: busca el equivalente UCITS
+            con el término que se indica, y pega el ISIN en Ajustes.
+          </p>
+          <div className="tabla-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Activo</th>
+                  <th>Peso objetivo</th>
+                  <th>Qué buscar en el bróker</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sinIsin.map((sym) => {
+                  const c = compraFor(sym, settings.compras)
+                  return (
+                    <tr key={sym}>
+                      <td>
+                        <span className="sym">{sym}</span>
+                        <div className="name">{metaFor(sym).name}</div>
+                      </td>
+                      <td>{fmtPct(target[sym], true)}</td>
+                      <td style={{ textAlign: 'left' }}>
+                        {c.buscar || '—'}
+                        {c.nota && <div className="name aviso">{c.nota}</div>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {costes.length > 0 && (
+        <div className="card">
+          <h2>Lo que te costaría este rebalanceo</h2>
+          <p className="hint">
+            Mismas órdenes, tarifas de cada bróker. La columna anual supone que este patrón se repite todos
+            los meses: es la cifra que de verdad importa en una regla que rota, porque una comisión de 1 €
+            parece nada hasta que la multiplicas por doce meses y por cada posición.
+          </p>
+          <div className="tabla-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bróker</th>
+                  <th>Órdenes</th>
+                  <th>Importe movido</th>
+                  <th>Coste ahora</th>
+                  <th>% del importe</th>
+                  <th>Coste anual</th>
+                  <th>% del patrimonio</th>
+                  <th>Tarifa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costes.map((f, k) => {
+                  const anual = costeAnual(f.broker, orders, val.equity)
+                  return (
+                    <tr key={f.broker.id} className={k === 0 ? 'picked' : ''}>
+                      <td>
+                        <b>{f.broker.nombre}</b>
+                        {f.broker.fuente === 'revisar' && (
+                          <div className="name aviso">tarifa sin verificar</div>
+                        )}
+                      </td>
+                      <td>{f.ordenes}</td>
+                      <td>{fmtEur(f.importe)}</td>
+                      <td>
+                        <b>{fmtEur(f.total)}</b>
+                      </td>
+                      <td>{fmtPct(f.pctSobreImporte)}</td>
+                      <td>{fmtEur(anual.anual)}</td>
+                      <td className={anual.pctPatrimonio > 0.005 ? 'neg' : ''}>
+                        {fmtPct(anual.pctPatrimonio)}
+                      </td>
+                      <td style={{ textAlign: 'left' }} className="muted small">
+                        {f.broker.fijo ? `${fmtEur(f.broker.fijo)} fijo` : ''}
+                        {f.broker.fijo && f.broker.pct ? ' + ' : ''}
+                        {f.broker.pct ? fmtPct(f.broker.pct) : ''}
+                        {f.broker.minimo ? `, mínimo ${fmtEur(f.broker.minimo)}` : ''}
+                        {f.broker.gratisMes ? `, ${f.broker.gratisMes} gratis/mes` : ''}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
+            Las tarifas se editan en Ajustes. La de Revolut depende de tu plan y ha cambiado varias veces,
+            así que compruébala en tu app antes de fiarte de esta comparación.
+          </p>
+        </div>
+      )}
     </>
   )
 }

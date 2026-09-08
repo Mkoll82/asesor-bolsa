@@ -130,13 +130,21 @@ export function replayEquity(paper, aligned) {
 // Convierte una cartera objetivo en pesos en las ordenes concretas que la
 // alcanzan desde la cartera simulada actual.
 export function ordersToReach(targetWeights, valuation, priceOf, opts = {}) {
+  // Hay que reservar lo que se van a comer las comisiones: sin esa reserva,
+  // invertir el 100% del patrimonio deja la liquidez en negativo, algo que no
+  // puede pasar en una cuenta real. El problema es que la comision fija
+  // depende del numero de ordenes, y ese numero no se sabe hasta calcularlas.
+  // Se resuelve en dos pasadas: la primera cuenta ordenes, la segunda reserva
+  // el importe exacto.
+  const primera = calcularOrdenes(targetWeights, valuation, priceOf, opts, 0)
+  const reservaFija = primera.length * (opts.commissionFixed ?? 0)
+  return calcularOrdenes(targetWeights, valuation, priceOf, opts, reservaFija)
+}
+
+function calcularOrdenes(targetWeights, valuation, priceOf, opts, reservaFija) {
   const minTicket = opts.minTicket ?? 25
-  // Se reserva el coste estimado de las comisiones (una venta mas una compra
-  // por cada euro que se mueve). Sin esta reserva, invertir el 100% del
-  // patrimonio dejaria la liquidez en negativo por el importe de las
-  // comisiones, algo que no puede pasar en una cuenta real.
-  const reserve = 1 - (2 * (opts.commissionBps ?? 0)) / 10000
-  const equity = valuation.equity * reserve
+  const reservaPct = 1 - (2 * (opts.commissionBps ?? 0)) / 10000
+  const equity = Math.max(0, valuation.equity * reservaPct - reservaFija)
   const out = []
   const syms = new Set([...Object.keys(targetWeights), ...Object.keys(valuation.weights)])
   for (const symbol of syms) {
@@ -158,7 +166,16 @@ export function ordersToReach(targetWeights, valuation, priceOf, opts = {}) {
   )
 }
 
-export function makeOp({ date, symbol, action, units, price, commissionBps = 10, note = '' }) {
+export function makeOp({
+  date,
+  symbol,
+  action,
+  units,
+  price,
+  commissionBps = 0,
+  commissionFixed = 0,
+  note = '',
+}) {
   return {
     id: `${date}-${symbol}-${action}-${Math.random().toString(36).slice(2, 8)}`,
     date,
@@ -166,7 +183,8 @@ export function makeOp({ date, symbol, action, units, price, commissionBps = 10,
     action,
     units,
     price,
-    fee: (units * price * commissionBps) / 10000,
+    // Dos partes, como cobran los brokeRs europeos: porcentaje mas fijo.
+    fee: (units * price * commissionBps) / 10000 + commissionFixed,
     note,
   }
 }

@@ -1,11 +1,18 @@
 import { useMemo } from 'react'
 import Chart from './Chart.jsx'
 import { runBacktest } from '../lib/backtest.js'
-import { fmtDate, fmtNum, fmtPct, signClass } from '../lib/format.js'
+import { fmtDate, fmtEur, fmtNum, fmtPct, signClass } from '../lib/format.js'
 
 export default function BacktestPanel({ settings, patch, aligned }) {
   const { cfg } = settings
-  const res = useMemo(() => runBacktest(aligned, cfg), [aligned, cfg])
+  // El capital de referencia sale del simulador si no se ha fijado a mano:
+  // la comision fija solo se puede convertir en porcentaje si se sabe sobre
+  // cuanto dinero se cobra.
+  const efectiva = useMemo(
+    () => ({ ...cfg, capital: cfg.capital || settings.paper.startCapital || 10000 }),
+    [cfg, settings.paper.startCapital]
+  )
+  const res = useMemo(() => runBacktest(aligned, efectiva), [aligned, efectiva])
 
   const setCfg = (p) => patch({ cfg: { ...cfg, ...p } })
 
@@ -15,7 +22,9 @@ export default function BacktestPanel({ settings, patch, aligned }) {
         <h2>Reglas</h2>
         <p className="hint">
           Lo que cambies aquí afecta también a la señal del mes: el backtest prueba exactamente la regla
-          que después te dice qué comprar.
+          que después te dice qué comprar. La comisión tiene dos partes porque los brókeres europeos
+          cobran así: <b>Trade Republic son 0 pb + 1 €</b> por orden. Y el capital importa: 1 € por orden
+          sobre 1.000 € es cien veces más caro, en porcentaje, que sobre 100.000 €.
         </p>
         <div className="row">
           <label className="field">
@@ -40,13 +49,33 @@ export default function BacktestPanel({ settings, patch, aligned }) {
             />
           </label>
           <label className="field">
-            Comisión (pb)
+            Comisión % (pb)
             <input
               type="number"
               min="0"
               max="100"
               value={cfg.commissionBps}
               onChange={(e) => setCfg({ commissionBps: Math.max(0, +e.target.value || 0) })}
+            />
+          </label>
+          <label className="field">
+            Comisión fija (€/orden)
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={cfg.commissionFixed}
+              onChange={(e) => setCfg({ commissionFixed: Math.max(0, +e.target.value || 0) })}
+            />
+          </label>
+          <label className="field">
+            Capital de referencia (€)
+            <input
+              type="number"
+              min="100"
+              step="500"
+              value={efectiva.capital}
+              onChange={(e) => setCfg({ capital: Math.max(100, +e.target.value || 0) })}
             />
           </label>
           <label className="field">
@@ -138,7 +167,9 @@ export default function BacktestPanel({ settings, patch, aligned }) {
               <div className="stat">
                 <div className="k">Comisiones</div>
                 <div className="v">{fmtPct(res.stats.totalCost, true)}</div>
-                <div className="n">acumuladas, sobre el capital inicial</div>
+                <div className="n">
+                  {fmtEur(res.stats.totalCostEuros)} sobre {fmtEur(efectiva.capital)} iniciales
+                </div>
               </div>
             </div>
           </div>
@@ -197,6 +228,7 @@ export default function BacktestPanel({ settings, patch, aligned }) {
                     <th>Cierre de mes</th>
                     <th>Cartera</th>
                     <th>Rotación</th>
+                    <th>Órdenes</th>
                     <th>Coste</th>
                   </tr>
                 </thead>
@@ -219,7 +251,8 @@ export default function BacktestPanel({ settings, patch, aligned }) {
                           </div>
                         </td>
                         <td>{fmtPct(r.turnover, true)}</td>
-                        <td className="muted">{fmtPct(r.cost, true)}</td>
+                        <td className="muted">{r.ordenes ?? '—'}</td>
+                        <td className="muted">{fmtEur(r.cost * efectiva.capital)}</td>
                       </tr>
                     ))}
                 </tbody>

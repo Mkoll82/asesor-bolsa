@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { DEFAULT_UNIVERSE, metaFor } from '../data/universe.js'
-import { fmtDate } from '../lib/format.js'
+import { DEFAULT_UNIVERSE, metaFor, compraFor } from '../data/universe.js'
+import { BROKERS_DEFAULT } from '../lib/brokers.js'
+import { fmtDate, fmtEur, fmtPct } from '../lib/format.js'
 
 export default function Settings({ settings, patch, data, onClearCache }) {
   const { cfg } = settings
@@ -8,6 +9,12 @@ export default function Settings({ settings, patch, data, onClearCache }) {
   const [msg, setMsg] = useState(null)
 
   const setCfg = (p) => patch({ cfg: { ...cfg, ...p } })
+
+  const setCompra = (sym, campos) =>
+    patch({ compras: { ...settings.compras, [sym]: { ...settings.compras[sym], ...campos } } })
+
+  const setBroker = (id, campos) =>
+    patch({ brokers: { ...settings.brokers, [id]: { ...settings.brokers[id], ...campos } } })
 
   function addSymbol(e) {
     e.preventDefault()
@@ -51,6 +58,8 @@ export default function Settings({ settings, patch, data, onClearCache }) {
     }
   }
 
+  const pendientes = settings.universe.filter((s) => !compraFor(s, settings.compras).isin)
+
   return (
     <>
       {msg && <div className="banner">{msg}</div>}
@@ -60,7 +69,7 @@ export default function Settings({ settings, patch, data, onClearCache }) {
         <p className="hint">
           Plan Basic gratuito en twelvedata.com: 800 peticiones al día y 8 por minuto. La clave se guarda
           solo en este navegador (localStorage) y las peticiones van directas del navegador a Twelve Data.
-          Si algún día publicas esta app en internet, no metas la clave en el código: introdúcela aquí.
+          Nunca pasa por ningún servidor mío ni queda en el código publicado.
         </p>
         <div className="row">
           <input
@@ -76,27 +85,37 @@ export default function Settings({ settings, patch, data, onClearCache }) {
         </div>
         <p className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
           Descargar los {settings.universe.length} activos del universo cuesta {settings.universe.length}{' '}
-          peticiones y tarda unos {Math.ceil(settings.universe.length / 8) * 60 - 60} segundos por el
-          límite de 8 por minuto. Última descarga:{' '}
+          peticiones y tarda unos {Math.max(0, Math.ceil(settings.universe.length / 8) * 60 - 60)} segundos
+          por el límite de 8 por minuto. Última descarga:{' '}
           {settings.lastRefresh ? fmtDate(settings.lastRefresh) : 'nunca'}.
         </p>
       </div>
 
       <div className="card">
-        <h2>Universo ({settings.universe.length} activos)</h2>
+        <h2>Universo y códigos de compra ({settings.universe.length} activos)</h2>
         <p className="hint">
-          Usa tickers de bolsas de EE.UU.: son los que cubre el plan gratuito. Para exposición europea
-          existen ETFs cotizados en EE.UU. (VGK, EWP, EFA) que evitan el problema.
+          Los tickers de la izquierda son de EE. UU. y sirven para <b>calcular</b>: son los que cubre el
+          plan gratuito de datos. Las dos últimas columnas son para <b>comprar</b>, el equivalente UCITS
+          que sí te venden en Europa. Solo vienen rellenos los dos ISIN que puedo garantizar; el resto
+          pégalos tú desde el buscador de tu bróker, porque un ISIN inventado es comprar otra cosa.
         </p>
+        {pendientes.length > 0 && (
+          <div className="banner" style={{ marginBottom: 14 }}>
+            Te faltan {pendientes.length} ISIN: {pendientes.join(', ')}. Sin ellos la señal te dirá qué
+            comprar pero no con qué código buscarlo.
+          </div>
+        )}
         <div className="tabla-scroll">
           <table>
             <thead>
               <tr>
-                <th>Ticker</th>
+                <th>Cálculo</th>
                 <th>Nombre</th>
                 <th>Clase</th>
                 <th>Sesiones</th>
-                <th>Origen</th>
+                <th>Datos</th>
+                <th>Ticker UCITS</th>
+                <th>ISIN para comprar</th>
                 <th />
               </tr>
             </thead>
@@ -104,6 +123,7 @@ export default function Settings({ settings, patch, data, onClearCache }) {
               {settings.universe.map((s) => {
                 const m = metaFor(s)
                 const d = data?.[s]
+                const c = compraFor(s, settings.compras)
                 return (
                   <tr key={s}>
                     <td className="sym">{s}</td>
@@ -120,6 +140,27 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                       ) : (
                         <span className="pill">sin datos</span>
                       )}
+                    </td>
+                    <td>
+                      <input
+                        value={settings.compras[s]?.ticker ?? c.ticker ?? ''}
+                        placeholder="CSPX"
+                        onChange={(e) => setCompra(s, { ticker: e.target.value.toUpperCase() })}
+                        style={{ width: 86, fontFamily: 'var(--mono)' }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        value={settings.compras[s]?.isin ?? c.isin ?? ''}
+                        placeholder={c.buscar ? 'pega el ISIN' : ''}
+                        title={c.buscar ? `Busca «${c.buscar}» en tu bróker` : c.nombre || ''}
+                        onChange={(e) =>
+                          setCompra(s, { isin: e.target.value.toUpperCase().replace(/\s+/g, '') })
+                        }
+                        style={{ width: 152, fontFamily: 'var(--mono)' }}
+                      />
+                      {!c.isin && c.buscar && <div className="name">busca «{c.buscar}»</div>}
+                      {c.nota && <div className="name aviso">{c.nota}</div>}
                     </td>
                     <td>
                       <button className="btn small danger" onClick={() => removeSymbol(s)}>
@@ -162,10 +203,108 @@ export default function Settings({ settings, patch, data, onClearCache }) {
       </div>
 
       <div className="card">
+        <h2>Tarifas de tus brókeres</h2>
+        <p className="hint">
+          Los precios cambian y algunos dependen del plan que tengas contratado, así que aquí no hay nada
+          grabado en piedra: pon los números que veas en tu app. El coste por orden se calcula como{' '}
+          <b>fijo + porcentaje sobre el importe</b>, con un mínimo, descontando las órdenes gratuitas que
+          te dé el bróker cada mes.
+        </p>
+        <div className="tabla-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Bróker</th>
+                <th>Fijo (€)</th>
+                <th>Porcentaje</th>
+                <th>Mínimo (€)</th>
+                <th>Gratis/mes</th>
+                <th>Orden de 1.000 €</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.values(settings.brokers).map((b) => {
+                const ej = Math.max((b.fijo || 0) + 1000 * (b.pct || 0), b.minimo || 0)
+                return (
+                  <tr key={b.id}>
+                    <td>
+                      <b>{b.nombre}</b>
+                      {b.fuente === 'revisar' ? (
+                        <div className="name aviso">sin verificar</div>
+                      ) : (
+                        <div className="name">tarifa pública</div>
+                      )}
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={b.fijo}
+                        onChange={(e) => setBroker(b.id, { fijo: Math.max(0, +e.target.value || 0) })}
+                        style={{ width: 78 }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        max="5"
+                        step="0.05"
+                        value={+(b.pct * 100).toFixed(3)}
+                        onChange={(e) => setBroker(b.id, { pct: Math.max(0, +e.target.value || 0) / 100 })}
+                        style={{ width: 82 }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={b.minimo}
+                        onChange={(e) => setBroker(b.id, { minimo: Math.max(0, +e.target.value || 0) })}
+                        style={{ width: 78 }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        max="30"
+                        value={b.gratisMes}
+                        onChange={(e) => setBroker(b.id, { gratisMes: Math.max(0, +e.target.value || 0) })}
+                        style={{ width: 70 }}
+                      />
+                    </td>
+                    <td>
+                      {fmtEur(ej)}
+                      <div className="name">{fmtPct(ej / 1000)}</div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="row" style={{ marginTop: 12 }}>
+          <button className="btn" onClick={() => patch({ brokers: structuredClone(BROKERS_DEFAULT) })}>
+            Restaurar tarifas por defecto
+          </button>
+        </div>
+        {Object.values(settings.brokers).map((b) =>
+          b.nota ? (
+            <p className="hint" key={b.id} style={{ marginTop: 10, marginBottom: 0 }}>
+              <b>{b.nombre}:</b> {b.nota}
+            </p>
+          ) : null
+        )}
+      </div>
+
+      <div className="card">
         <h2>Ventanas de momentum</h2>
         <p className="hint">
-          Sesiones que mira cada ventana y su peso en la puntuación. 21 sesiones ≈ 1 mes. Ventanas cortas
-          reaccionan antes y se equivocan más.
+          Sesiones que mira cada ventana. 21 sesiones ≈ 1 mes. Ventanas cortas reaccionan antes y se
+          equivocan más.
         </p>
         <div className="row">
           {cfg.lookbacks.map((l, k) => (
@@ -179,8 +318,7 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                 value={l.days}
                 onChange={(e) => {
                   const days = Math.max(10, +e.target.value || l.days)
-                  const next = cfg.lookbacks.map((x, i) => (i === k ? { ...x, days } : x))
-                  setCfg({ lookbacks: next })
+                  setCfg({ lookbacks: cfg.lookbacks.map((x, i) => (i === k ? { ...x, days } : x)) })
                 }}
               />
             </label>
@@ -201,7 +339,7 @@ export default function Settings({ settings, patch, data, onClearCache }) {
       <div className="card">
         <h2>Datos y copias</h2>
         <p className="hint">
-          Los históricos viven en IndexedDB y los ajustes con la cartera simulada en localStorage. Si
+          Los históricos viven en IndexedDB y los ajustes, los ISIN y las operaciones en localStorage. Si
           vacías los datos del navegador, se pierden: exporta de vez en cuando.
         </p>
         <div className="row">
