@@ -116,6 +116,20 @@ export default function App() {
     return c
   }, [data, settings.universe])
 
+  // La regla solo puede elegir lo que el broker activo ofrece de verdad. Se
+  // deriva de lo comprobado en Ajustes en lugar de guardarse aparte, para que
+  // no puedan contradecirse.
+  const cfgEfectiva = useMemo(() => {
+    const disp = settings.disponibilidad?.[settings.brokerActivo] || {}
+    const excluidos = settings.universe.filter((s) => disp[s] === 'no')
+    return { ...settings.cfg, excluidos }
+  }, [settings.cfg, settings.disponibilidad, settings.brokerActivo, settings.universe])
+
+  const ajustesEfectivos = useMemo(
+    () => ({ ...settings, cfg: cfgEfectiva }),
+    [settings, cfgEfectiva]
+  )
+
   const mkt = useMemo(
     () => (aligned ? breadth(aligned, lastIdx, settings.cfg.trendPeriod) : null),
     [aligned, lastIdx, settings.cfg.trendPeriod]
@@ -172,7 +186,16 @@ export default function App() {
     setView('activo')
   }
 
-  const shared = { settings, patch, aligned, lastIdx, priceOf, data, openAsset, goTo: setView }
+  const shared = {
+    settings: ajustesEfectivos,
+    patch,
+    aligned,
+    lastIdx,
+    priceOf,
+    data,
+    openAsset,
+    goTo: setView,
+  }
 
   return (
     <div className="app">
@@ -215,7 +238,7 @@ export default function App() {
 
       <main>
         {view === 'guia' ? (
-          <GuiaPanel settings={settings} data={data} goTo={setView} />
+          <GuiaPanel settings={ajustesEfectivos} data={data} goTo={setView} />
         ) : !aligned ? (
           <div className="card">Cargando series…</div>
         ) : view === 'senal' ? (

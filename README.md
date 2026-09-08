@@ -26,9 +26,11 @@ Los resultados pasados no anticipan los futuros.
 3. Filtro de seguridad: un activo solo entra si cotiza **por encima de su media de 200 sesiones**. El
    hueco que deja va a **liquidez** (BIL, letras a 1-3 meses).
 4. Pesos iguales entre los elegidos. Se revisa una vez al mes y nada más.
-5. La regla solo elige entre los activos que **tu bróker ofrece de verdad**: los que marques como no
-   disponibles en Ajustes salen del ranking, y el backtest prueba ese universo restringido. Una regla
-   que recomienda algo que no puedes comprar te deja bloqueado el mes que lo elige.
+5. La regla solo elige entre los activos que **tu bróker ofrece de verdad**. En Ajustes hay una matriz
+   de disponibilidad por bróker, con tres estados por celda: sí, no y sin comprobar (que no es lo
+   mismo que no estar). Solo lo marcado como ausente sale del ranking, y el backtest prueba ese
+   universo restringido. Una regla que recomienda algo que no puedes comprar te bloquea el mes que lo
+   elige, y el catálogo cambia mucho de un bróker a otro: el mismo ETF está en uno y no en el otro.
 6. **Banda de reajuste**: los cambios de activo se ejecutan siempre, pero la simple deriva de pesos solo
    se corrige si alguno se desvía más de la banda (5 puntos por defecto). Con una comisión fija por
    orden, cuadrar la cartera al milímetro cada mes puede costar más de lo que vale.

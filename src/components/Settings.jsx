@@ -8,6 +8,7 @@ import {
 } from '../data/universe.js'
 import { BROKERS_DEFAULT } from '../lib/brokers.js'
 import { probarClave } from '../data/twelvedata.js'
+import Disponibilidad from './Disponibilidad.jsx'
 import { fmtDate, fmtEur, fmtPct } from '../lib/format.js'
 
 export default function Settings({ settings, patch, data, onClearCache }) {
@@ -32,15 +33,6 @@ export default function Settings({ settings, patch, data, onClearCache }) {
   const setBroker = (id, campos) =>
     patch({ brokers: { ...settings.brokers, [id]: { ...settings.brokers[id], ...campos } } })
 
-  // Marcar un activo como no disponible lo saca del ranking, no de los datos:
-  // la regla deja de elegirlo y el backtest prueba el universo que de verdad
-  // puedes comprar.
-  function setDisponible(sym, disponible) {
-    const fuera = new Set(cfg.excluidos || [])
-    if (disponible) fuera.delete(sym)
-    else fuera.add(sym)
-    setCfg({ excluidos: [...fuera] })
-  }
 
   function addSymbol(e) {
     e.preventDefault()
@@ -164,7 +156,6 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                 <th>Datos</th>
                 <th>Ticker UCITS</th>
                 <th>ISIN para comprar</th>
-                <th>Lo tiene mi bróker</th>
                 <th />
               </tr>
             </thead>
@@ -243,19 +234,6 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                       {c.nota && <div className="name aviso">{c.nota}</div>}
                     </td>
                     <td>
-                      {s === cfg.cashSymbol ? (
-                        <span className="muted small">liquidez</span>
-                      ) : (
-                        <label className="check" style={{ justifyContent: 'flex-end' }}>
-                          <input
-                            type="checkbox"
-                            checked={!(cfg.excluidos || []).includes(s)}
-                            onChange={(e) => setDisponible(s, e.target.checked)}
-                          />
-                        </label>
-                      )}
-                    </td>
-                    <td>
                       <button className="btn small danger" onClick={() => removeSymbol(s)}>
                         quitar
                       </button>
@@ -294,6 +272,8 @@ export default function Settings({ settings, patch, data, onClearCache }) {
           </button>
         </form>
       </div>
+
+      <Disponibilidad settings={settings} patch={patch} />
 
       <div className="card">
         <h2>Tarifas de tus brókeres</h2>

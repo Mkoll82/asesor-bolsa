@@ -17,6 +17,12 @@ const DEFAULTS = {
   // universe.js, porque lo ha visto en pantalla y yo no.
   compras: {},
   brokers: BROKERS_DEFAULT,
+  // Que broker se usa para decidir. La regla solo elige entre lo que ESE
+  // broker ofrece, porque el catalogo cambia mucho de uno a otro.
+  brokerActivo: 'traderepublic',
+  // Lo comprobado en cada broker: { traderepublic: { DBC: 'no', EWP: 'si' } }.
+  // Lo que no aparece esta sin comprobar, que no es lo mismo que no estar.
+  disponibilidad: {},
   // Cartera real: lo que de verdad ha pasado en tu cuenta del broker.
   real: {
     broker: 'traderepublic',
@@ -39,6 +45,8 @@ export function loadSettings() {
       cfg: { ...DEFAULT_CFG, ...(parsed.cfg || {}) },
       paper: { ...DEFAULT_PAPER, ...(parsed.paper || {}) },
       compras: { ...(parsed.compras || {}) },
+      brokerActivo: parsed.brokerActivo || DEFAULTS.brokerActivo,
+      disponibilidad: { ...(parsed.disponibilidad || {}) },
       real: { ...DEFAULTS.real, ...(parsed.real || {}) },
       // Se fusiona por broker para que anadir uno nuevo aqui no borre las
       // tarifas que el usuario ya haya corregido.
