@@ -649,3 +649,44 @@ test('candidatos: el digito de control de cada ISIN cuadra', () => {
     assert.ok(isinValido(isin), `${isin} tiene el digito de control mal`)
   }
 })
+
+// --- Universo restringido a lo que el broker ofrece -------------------------
+
+test('excluidos: la regla no puede elegir lo que tu broker no vende', () => {
+  const al = alignSeries(demoBars(SYMS, 900))
+  const i = al.dates.length - 1
+  const cfg = { ...DEFAULT_CFG, excluidos: ['DBC', 'GLD'] }
+  const rows = rankAt(al, i, cfg)
+  const simbolos = rows.map((r) => r.symbol)
+  assert.ok(!simbolos.includes('DBC'), 'DBC no deberia estar en el ranking')
+  assert.ok(!simbolos.includes('GLD'), 'GLD tampoco')
+  assert.equal(rows.length, SYMS.length - 3, 'faltan los dos excluidos y la liquidez')
+
+  const w = targetWeights(rows, cfg)
+  assert.ok(!w.DBC && !w.GLD, 'ni pueden aparecer en la cartera objetivo')
+  assert.ok(Math.abs(Object.values(w).reduce((a, b) => a + b, 0) - 1) < 1e-9)
+})
+
+test('excluidos: el backtest prueba el universo restringido', () => {
+  const al = alignSeries(demoBars(SYMS, 1500))
+  const completo = runBacktest(al, DEFAULT_CFG)
+  const restringido = runBacktest(al, { ...DEFAULT_CFG, excluidos: ['DBC', 'GLD'] })
+  assert.equal(restringido.error, undefined)
+  for (const r of restringido.rebalances) {
+    assert.ok(!r.picks.includes('DBC') && !r.picks.includes('GLD'), `${r.date} eligió un excluido`)
+  }
+  // El resultado tiene que cambiar: si no, la exclusion no estaria surtiendo
+  // efecto en ninguna decision.
+  assert.ok(Math.abs(restringido.stats.cagr - completo.stats.cagr) > 1e-6)
+})
+
+test('excluidos: la liquidez sigue disponible aunque se excluya todo lo demas', () => {
+  const al = alignSeries(demoBars(SYMS, 900))
+  const i = al.dates.length - 1
+  const fuera = SYMS.filter((s) => s !== DEFAULT_CFG.cashSymbol)
+  const cfg = { ...DEFAULT_CFG, excluidos: fuera }
+  const rows = rankAt(al, i, cfg)
+  assert.equal(rows.length, 0)
+  const w = targetWeights(rows, cfg)
+  assert.ok(Math.abs(w[DEFAULT_CFG.cashSymbol] - 1) < 1e-9, 'todo a liquidez')
+})

@@ -129,6 +129,12 @@ export default function BacktestPanel({ settings, patch, aligned }) {
                 <p className="hint" style={{ marginBottom: 0 }}>
                   {fmtDate(res.stats.from)} → {fmtDate(res.stats.to)} · {fmtNum(res.stats.years)} años ·
                   rebalanceo mensual
+                  {(cfg.excluidos || []).length > 0 && (
+                    <>
+                      {' '}· sin{' '}
+                      <b className="mono">{cfg.excluidos.join(', ')}</b>, que tu bróker no ofrece
+                    </>
+                  )}
                 </p>
               </div>
             </div>

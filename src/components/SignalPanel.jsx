@@ -161,6 +161,12 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
         <p className="hint">
           Puntuación = media de las rentabilidades a {cfg.lookbacks.map((l) => l.label).join(', ')}.
           Pulsa una fila para ver su ficha técnica.
+          {(cfg.excluidos || []).length > 0 && (
+            <>
+              {' '}Fuera del ranking porque tu bróker no los tiene:{' '}
+              <b className="mono">{cfg.excluidos.join(', ')}</b>. Se cambia en Ajustes.
+            </>
+          )}
         </p>
         <div className="tabla-scroll">
           <table>

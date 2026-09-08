@@ -22,6 +22,11 @@ export const DEFAULT_CFG = {
   // y el 38%. Los cambios de activo se ejecutan siempre, al margen de esto.
   rebalanceBand: 0.05,
   benchmark: 'SPY',
+  // Activos que la regla NO puede elegir porque tu broker no los ofrece. Una
+  // regla que recomienda algo que no puedes comprar esta rota: te deja
+  // bloqueado el mes que lo elige. Se excluyen del ranking, no de los datos,
+  // asi que el backtest prueba el universo que de verdad tienes disponible.
+  excluidos: [],
 }
 
 // Puntuacion = media ponderada de las rentabilidades de cada ventana.
@@ -44,8 +49,10 @@ export function scoreAt(closes, i, cfg = DEFAULT_CFG) {
 // Clasificacion del universo en la sesion `i`.
 export function rankAt(aligned, i, cfg = DEFAULT_CFG) {
   const rows = []
+  const fuera = new Set(cfg.excluidos || [])
   for (const sym of aligned.symbols) {
     if (sym === cfg.cashSymbol) continue
+    if (fuera.has(sym)) continue
     const closes = aligned.closes[sym]
     const s = scoreAt(closes, i, cfg)
     if (!s) continue

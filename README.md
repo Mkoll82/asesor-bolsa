@@ -26,7 +26,10 @@ Los resultados pasados no anticipan los futuros.
 3. Filtro de seguridad: un activo solo entra si cotiza **por encima de su media de 200 sesiones**. El
    hueco que deja va a **liquidez** (BIL, letras a 1-3 meses).
 4. Pesos iguales entre los elegidos. Se revisa una vez al mes y nada más.
-5. **Banda de reajuste**: los cambios de activo se ejecutan siempre, pero la simple deriva de pesos solo
+5. La regla solo elige entre los activos que **tu bróker ofrece de verdad**: los que marques como no
+   disponibles en Ajustes salen del ranking, y el backtest prueba ese universo restringido. Una regla
+   que recomienda algo que no puedes comprar te deja bloqueado el mes que lo elige.
+6. **Banda de reajuste**: los cambios de activo se ejecutan siempre, pero la simple deriva de pesos solo
    se corrige si alguno se desvía más de la banda (5 puntos por defecto). Con una comisión fija por
    orden, cuadrar la cartera al milímetro cada mes puede costar más de lo que vale.
 
@@ -45,7 +48,7 @@ de mercado común para que las correlaciones sean realistas): sirve para ver la 
 decidir nada.
 
 ```bash
-npm test          # 50 pruebas del motor: indicadores, backtest, comisiones, contabilidad e ISIN
+npm test          # 53 pruebas del motor: indicadores, backtest, comisiones, contabilidad e ISIN
 npm run build     # genera dist/ como sitio estático
 ```
 
