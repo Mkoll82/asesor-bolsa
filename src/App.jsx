@@ -6,6 +6,7 @@ import { fetchBars } from './data/twelvedata.js'
 import { alignSeries } from './lib/series.js'
 import { breadth } from './lib/momentum.js'
 import { fmtDate, fmtPct } from './lib/format.js'
+import GuiaPanel from './components/GuiaPanel.jsx'
 import SignalPanel from './components/SignalPanel.jsx'
 import PaperPanel from './components/PaperPanel.jsx'
 import RealPanel from './components/RealPanel.jsx'
@@ -14,6 +15,7 @@ import BacktestPanel from './components/BacktestPanel.jsx'
 import Settings from './components/Settings.jsx'
 
 const VIEWS = [
+  { id: 'guia', label: 'Empezar aquí' },
   { id: 'senal', label: 'Señal del mes' },
   { id: 'simulador', label: 'Simulador' },
   { id: 'real', label: 'Cartera real' },
@@ -26,7 +28,12 @@ export default function App() {
   const [settings, setSettings] = useState(loadSettings)
   const [data, setData] = useState(null)
   const [status, setStatus] = useState({ busy: true, msg: 'Cargando datos locales…' })
-  const [view, setView] = useState('senal')
+  // Quien llega sin clave y sin haber descargado nada aterriza en la guia; el
+  // resto, directo a la senal, que es la pantalla de trabajo.
+  const [view, setView] = useState(() => {
+    const s = loadSettings()
+    return s.apikey || s.lastRefresh ? 'senal' : 'guia'
+  })
   const [selected, setSelected] = useState(null)
   const mounted = useRef(false)
 
@@ -165,7 +172,7 @@ export default function App() {
     setView('activo')
   }
 
-  const shared = { settings, patch, aligned, lastIdx, priceOf, data, openAsset }
+  const shared = { settings, patch, aligned, lastIdx, priceOf, data, openAsset, goTo: setView }
 
   return (
     <div className="app">
@@ -207,7 +214,9 @@ export default function App() {
       {status.msg && <div className={`banner ${status.busy ? 'busy' : ''}`}>{status.msg}</div>}
 
       <main>
-        {!aligned ? (
+        {view === 'guia' ? (
+          <GuiaPanel settings={settings} data={data} goTo={setView} />
+        ) : !aligned ? (
           <div className="card">Cargando series…</div>
         ) : view === 'senal' ? (
           <SignalPanel {...shared} />

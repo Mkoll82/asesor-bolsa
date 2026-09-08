@@ -204,3 +204,16 @@ label.check { display: flex; align-items: center; gap: 7px; font-size: 13px; }
 .compra .isin { font-size: 12px; letter-spacing: 0.2px; }
 .compra.pendiente { opacity: 0.9; }
 .name.aviso { color: var(--warn); }
+
+/* ---------- guia de uso ---------- */
+.paso-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; margin-right: 6px;
+  background: var(--acc); color: #fff; font-size: 11px; font-weight: 700;
+  vertical-align: middle;
+}
+.card > h2 .paso-n { vertical-align: baseline; }
+.guia-cuerpo { font-size: 13.5px; color: var(--ink-2); line-height: 1.75; }
+.guia-cuerpo b { color: var(--ink); }
+.guia-cuerpo ul, .guia-cuerpo ol { margin: 8px 0; }
+.guia-cuerpo li { margin-bottom: 6px; }

@@ -10,6 +10,7 @@ Los resultados pasados no anticipan los futuros.
 
 | Pestaña | Para qué sirve |
 |---|---|
+| **Empezar aquí** | Guía de uso que se marca a sí misma: cada paso comprueba el estado real de la app y dice qué falta. Es la pantalla de entrada mientras no haya clave ni datos descargados. |
 | **Señal del mes** | Ordena el universo por momentum, aplica el filtro de tendencia y te dice la cartera objetivo. Un botón la ejecuta en el simulador. |
 | **Simulador** | Cartera ficticia con 10.000 € de partida: posiciones, liquidez, comisiones, curva de resultados frente a comprar y mantener, y registro de operaciones. |
 | **Cartera real** | Lo que de verdad hay en tu bróker: operaciones ejecutadas, aportaciones y retiradas, el saldo que apuntas cada mes, y el diario de si seguiste la señal o no. |
@@ -112,6 +113,7 @@ src/lib/real.js         cartera real: rentabilidad con flujos, estimación por p
 src/lib/brokers.js      coste por orden y comparativa entre brókeres
 src/data/               proveedor, caché IndexedDB, universo con ISIN UCITS, generador de demo
 src/components/         una pestaña por archivo, más un gráfico SVG propio sin dependencias
+                        GuiaPanel.jsx es la guía de uso, y comprueba el estado en vez de narrarlo
 ```
 
 El estado del simulador **no se guarda**: se recalcula reproduciendo el registro de operaciones sobre
