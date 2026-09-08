@@ -41,7 +41,7 @@ de mercado común para que las correlaciones sean realistas): sirve para ver la 
 decidir nada.
 
 ```bash
-npm test          # 24 pruebas del motor: indicadores, backtest y contabilidad del simulador
+npm test          # 42 pruebas del motor: indicadores, backtest, comisiones y contabilidad
 npm run build     # genera dist/ como sitio estático
 ```
 
@@ -103,7 +103,9 @@ src/lib/series.js       alineado de calendarios, cierres de mes
 src/lib/momentum.js     puntuación, ranking, cartera objetivo, amplitud de mercado
 src/lib/backtest.js     motor de rebalanceo mensual
 src/lib/paper.js        contabilidad del simulador (se reconstruye del registro de operaciones)
-src/data/               proveedor, caché IndexedDB, universo, generador de demo
+src/lib/real.js         cartera real: rentabilidad con flujos, estimación por proxy, diario
+src/lib/brokers.js      coste por orden y comparativa entre brókeres
+src/data/               proveedor, caché IndexedDB, universo con ISIN UCITS, generador de demo
 src/components/         una pestaña por archivo, más un gráfico SVG propio sin dependencias
 ```
 
@@ -113,10 +115,14 @@ puede rastrear hasta las operaciones que la produjeron.
 
 ## Publicar
 
-`npm run build` genera `dist/`, que es un sitio estático. No hace falta Firebase ni ningún backend: se
-puede subir a cualquier hosting estático arrastrando la carpeta. Si lo publicas, ten en cuenta que
-cualquiera con el enlace vería la interfaz (los datos y la clave siguen siendo de cada navegador, porque
-viven en `localStorage`).
+Desplegado en https://asesor-bolsa-rosy.vercel.app. Vercel construye en cada push a `main` y detecta
+Vite solo; `vercel.json` solo añade la reescritura de rutas al índice. No hace falta backend de ningún
+tipo.
+
+Cualquiera con el enlace ve la interfaz, pero no tus datos: la API key, los ISIN, el simulador y la
+cartera real viven en el `localStorage` de tu navegador y nunca salen de ahí. El precio de eso es que
+**no se sincronizan entre dispositivos**: si abres la app en el móvil, empieza vacía. Exporta desde
+Ajustes para llevártelos.
 
 ## Lo que no hace
 
