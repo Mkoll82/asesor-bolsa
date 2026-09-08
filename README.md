@@ -48,7 +48,7 @@ de mercado común para que las correlaciones sean realistas): sirve para ver la 
 decidir nada.
 
 ```bash
-npm test          # 53 pruebas del motor: indicadores, backtest, comisiones, contabilidad e ISIN
+npm test          # 58 pruebas del motor: indicadores, backtest, comisiones, contabilidad e ISIN
 npm run build     # genera dist/ como sitio estático
 ```
 
@@ -90,6 +90,10 @@ Los candidatos salen de justETF (el fondo más grande por patrimonio en cada cas
 el dígito de control de cada ISIN, que detecta cualquier transcripción mal copiada. Aun así hay que
 verificarlos en el bróker: cuando pegas el ISIN que ves en tu pantalla, pasa a estar marcado como tuyo
 y manda sobre el candidato.
+
+Al pegar un ISIN, la app lo revisa: comprueba el dígito de control y, sobre todo, **avisa si es el
+código de otro activo de la lista**. Ese es el error peligroso, porque es silencioso: el ISIN es válido,
+el bróker lo encuentra, y acabas comprando bolsa española creyendo que son materias primas.
 
 La app también compara el coste de cada rebalanceo entre brókeres, con la tarifa como fijo más
 porcentaje. La de Trade Republic (1 € por orden) es pública y estable; la de Revolut depende del plan,

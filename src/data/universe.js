@@ -343,3 +343,79 @@ export function isinParaBuscar(symbol, overrides = {}) {
     }
   return { isin: '', confirmado: false, nombre: null, datos: null }
 }
+
+// --- Comprobaciones de un ISIN antes de darlo por bueno ---------------------
+
+// El ultimo caracter de un ISIN es una suma de control. Validarlo detecta
+// cualquier codigo mal copiado, que es el error mas facil de cometer.
+export function isinBienFormado(isin) {
+  if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin || '')) return false
+  const cuerpo = isin
+    .slice(0, 11)
+    .split('')
+    .map((ch) => (/\d/.test(ch) ? ch : String(ch.charCodeAt(0) - 55)))
+    .join('')
+  let suma = 0
+  let doblar = true
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    let d = +cuerpo[i]
+    if (doblar) {
+      d *= 2
+      if (d > 9) d -= 9
+    }
+    suma += d
+    doblar = !doblar
+  }
+  return (10 - (suma % 10)) % 10 === +isin[11]
+}
+
+// Revisa un ISIN que el usuario acaba de pegar en la fila de `symbol`.
+//
+// La comprobacion que de verdad importa es la segunda: pegar en un activo el
+// codigo de OTRO activo del universo. Es un error facil (las tablas se leen
+// mal, se copia la fila de al lado) y silencioso: el ISIN es valido, el broker
+// lo encuentra, y acabas comprando bolsa espanola creyendo que son materias
+// primas. Ningun formato lo detecta; solo comparar con el resto de la lista.
+export function revisarIsin(symbol, isin, overrides = {}) {
+  const limpio = (isin || '').trim().toUpperCase()
+  if (!limpio) return null
+  if (!isinBienFormado(limpio)) {
+    return {
+      nivel: 'error',
+      mensaje:
+        limpio.length === 12
+          ? 'Ese ISIN tiene el digito de control mal: se ha colado alguna letra o numero al copiarlo.'
+          : `Un ISIN son 12 caracteres y ese tiene ${limpio.length}.`,
+    }
+  }
+  // Coincide con el codigo de otro activo del universo?
+  for (const u of DEFAULT_UNIVERSE) {
+    if (u.symbol === symbol) continue
+    const otro = u.compra?.isin || u.compra?.candidato?.isin
+    if (otro && otro === limpio) {
+      return {
+        nivel: 'error',
+        mensaje: `Ese es el codigo de ${u.symbol} (${u.name}), no de ${symbol}. Comprarias otra cosa.`,
+      }
+    }
+  }
+  // Ya pegado por el usuario en otra fila?
+  for (const [sym, datos] of Object.entries(overrides)) {
+    if (sym === symbol) continue
+    if (datos?.isin && datos.isin.toUpperCase() === limpio) {
+      return {
+        nivel: 'error',
+        mensaje: `Ya has puesto ese mismo ISIN en ${sym}. Dos activos distintos no pueden ser el mismo fondo.`,
+      }
+    }
+  }
+  const esperado = metaFor(symbol).compra
+  const candidato = esperado?.isin || esperado?.candidato?.isin
+  if (candidato && candidato !== limpio) {
+    return {
+      nivel: 'aviso',
+      mensaje: `Distinto del que sugeria la app (${candidato}). Si lo has visto en tu broker, adelante: manda el tuyo.`,
+    }
+  }
+  return { nivel: 'ok', mensaje: 'Coincide con el que sugeria la app.' }
+}

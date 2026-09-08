@@ -7,7 +7,13 @@ import { rankAt, targetWeights, ordersFrom, DEFAULT_CFG, breadth } from '../src/
 import { runBacktest } from '../src/lib/backtest.js'
 import { valuate, replayEquity, ordersToReach, makeOp, BUY, SELL } from '../src/lib/paper.js'
 import { demoBars } from '../src/data/demo.js'
-import { DEFAULT_UNIVERSE, compraFor, isinParaBuscar } from '../src/data/universe.js'
+import {
+  DEFAULT_UNIVERSE,
+  compraFor,
+  isinParaBuscar,
+  revisarIsin,
+  isinBienFormado,
+} from '../src/data/universe.js'
 import { BROKERS_DEFAULT, costeOrden, comparar, costeAnual } from '../src/lib/brokers.js'
 import {
   curvaTWR,
@@ -689,4 +695,43 @@ test('excluidos: la liquidez sigue disponible aunque se excluya todo lo demas', 
   assert.equal(rows.length, 0)
   const w = targetWeights(rows, cfg)
   assert.ok(Math.abs(w[DEFAULT_CFG.cashSymbol] - 1) < 1e-9, 'todo a liquidez')
+})
+
+// --- Guardas al pegar un ISIN ----------------------------------------------
+
+test('revisarIsin: detecta el codigo de otro activo del universo', () => {
+  // El caso real: pegar en DBC el ISIN del ETF de bolsa espanola. El codigo es
+  // valido y el broker lo encuentra, asi que solo comparar con el resto de la
+  // lista puede pillarlo.
+  const r = revisarIsin('DBC', 'LU0592216393')
+  assert.equal(r.nivel, 'error')
+  assert.match(r.mensaje, /EWP/)
+  assert.match(r.mensaje, /Comprarias otra cosa/)
+})
+
+test('revisarIsin: acepta el candidato propio y avisa si es otro distinto', () => {
+  assert.equal(revisarIsin('DBC', 'IE00BD6FTQ80').nivel, 'ok')
+  const otro = revisarIsin('DBC', 'IE00BDFL4P12')
+  assert.equal(otro.nivel, 'aviso', 'la alternativa legitima solo avisa, no bloquea')
+  assert.match(otro.mensaje, /manda el tuyo/)
+})
+
+test('revisarIsin: caza el digito de control y la longitud', () => {
+  assert.equal(revisarIsin('DBC', 'IE00BD6FTQ81').nivel, 'error')
+  assert.match(revisarIsin('DBC', 'IE00BD6FTQ81').mensaje, /digito de control/)
+  assert.match(revisarIsin('DBC', 'IE00BD6FTQ8').mensaje, /12 caracteres/)
+  assert.equal(revisarIsin('DBC', ''), null, 'un campo vacio no es un error')
+})
+
+test('revisarIsin: no deja repetir el mismo ISIN en dos activos', () => {
+  const r = revisarIsin('TLT', 'IE00B3VWN518', { IEF: { isin: 'IE00B3VWN518' } })
+  assert.equal(r.nivel, 'error')
+  assert.match(r.mensaje, /IEF/)
+})
+
+test('isinBienFormado: casos conocidos', () => {
+  assert.equal(isinBienFormado('IE00B5BMR087'), true)
+  assert.equal(isinBienFormado('LU0592216393'), true)
+  assert.equal(isinBienFormado('IE00B5BMR088'), false)
+  assert.equal(isinBienFormado('esto no es un isin'), false)
 })

@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { DEFAULT_UNIVERSE, metaFor, compraFor, isinParaBuscar } from '../data/universe.js'
+import {
+  DEFAULT_UNIVERSE,
+  metaFor,
+  compraFor,
+  isinParaBuscar,
+  revisarIsin,
+} from '../data/universe.js'
 import { BROKERS_DEFAULT } from '../lib/brokers.js'
 import { probarClave } from '../data/twelvedata.js'
 import { fmtDate, fmtEur, fmtPct } from '../lib/format.js'
@@ -215,6 +221,17 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                         }
                         style={{ width: 152, fontFamily: 'var(--mono)' }}
                       />
+                      {(() => {
+                        const puesto = settings.compras[s]?.isin
+                        const r = puesto ? revisarIsin(s, puesto, settings.compras) : null
+                        if (!r) return null
+                        return (
+                          <div className={r.nivel === 'ok' ? 'name' : 'name aviso'}>
+                            {r.nivel === 'ok' ? '✓ ' : '⚠ '}
+                            {r.mensaje}
+                          </div>
+                        )
+                      })()}
                       {!c.isin && c.candidato && (
                         <div className="name">
                           candidato: {c.candidato.nombre} · {c.candidato.patrimonio}
