@@ -109,7 +109,10 @@ export default function Settings({ settings, patch, data, onClearCache }) {
           Descargar los {settings.universe.length} activos del universo cuesta {settings.universe.length}{' '}
           peticiones y tarda unos {Math.max(0, Math.ceil(settings.universe.length / 8) * 60 - 60)} segundos
           por el límite de 8 por minuto. Última descarga:{' '}
-          {settings.lastRefresh ? fmtDate(settings.lastRefresh) : 'nunca'}.
+          {settings.lastRefresh ? fmtDate(settings.lastRefresh) : 'nunca'}. Las peticiones se acotan al
+          listado de Estados Unidos: todos estos tickers existen también en México, Chile o Argentina, y
+          sin acotar podrías acabar con precios en pesos. En la tabla de abajo verás la bolsa y la divisa
+          que ha respondido, para poder comprobarlo.
         </p>
       </div>
 
@@ -156,7 +159,16 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                     <td>{d?.bars?.length ?? 0}</td>
                     <td>
                       {d?.source === 'twelvedata' ? (
-                        <span className="pill ok">real</span>
+                        <>
+                          <span className={d.currency && d.currency !== 'USD' ? 'pill warn' : 'pill ok'}>
+                            {d.exchange || 'real'} {d.currency || ''}
+                          </span>
+                          {d.currency && d.currency !== 'USD' && (
+                            <div className="name aviso">
+                              no es el listado de EE. UU.: revisa el ticker
+                            </div>
+                          )}
+                        </>
                       ) : d?.source === 'demo' ? (
                         <span className="pill warn">demo</span>
                       ) : (

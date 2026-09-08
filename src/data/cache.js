@@ -33,8 +33,10 @@ async function tx(mode, fn) {
   })
 }
 
-export async function saveBars(symbol, bars, source) {
-  return tx('readwrite', (s) => s.put({ symbol, bars, source, fetchedAt: Date.now() }))
+export async function saveBars(symbol, bars, source, meta = {}) {
+  return tx('readwrite', (s) =>
+    s.put({ symbol, bars, source, ...meta, fetchedAt: Date.now() })
+  )
 }
 
 export async function loadAll() {

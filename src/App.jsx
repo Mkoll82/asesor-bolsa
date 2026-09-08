@@ -50,7 +50,13 @@ export default function App() {
       try {
         const rows = await loadAll()
         const byS = {}
-        for (const r of rows || []) byS[r.symbol] = { bars: r.bars, source: r.source }
+        for (const r of rows || [])
+          byS[r.symbol] = {
+            bars: r.bars,
+            source: r.source,
+            currency: r.currency,
+            exchange: r.exchange,
+          }
         const missing = settings.universe.filter((s) => !byS[s]?.bars?.length)
         if (missing.length) {
           const demo = demoBars(missing)
@@ -132,7 +138,11 @@ export default function App() {
       const next = { ...data }
       for (const [s, d] of Object.entries(fresh)) {
         next[s] = d
-        await saveBars(s, d.bars, d.source)
+        await saveBars(s, d.bars, d.source, {
+          currency: d.currency,
+          exchange: d.exchange,
+          micCode: d.micCode,
+        })
       }
       setData(next)
       const errList = Object.entries(errors)

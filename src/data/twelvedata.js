@@ -20,6 +20,13 @@ const BASE = 'https://api.twelvedata.com'
 const BATCH = 8
 const WAIT_MS = 61000
 
+// Todos los tickers del universo tienen homonimos en otras bolsas: hay un SPY
+// en Mexico, otro en Argentina, un GLD en Sudafrica y Tailandia. Sin acotar el
+// pais, el proveedor podria devolver cualquiera de ellos, en su divisa y con su
+// calendario, y la app no tendria forma de notarlo. Se fija el pais y ademas se
+// guarda la bolsa y la divisa que responde, para poder comprobarlo a la vista.
+const PAIS = 'United States'
+
 export async function fetchBars(symbols, { apikey, outputsize = 1500, onProgress } = {}) {
   if (!apikey) throw new Error('Falta la API key de Twelve Data.')
   const result = {}
@@ -32,7 +39,7 @@ export async function fetchBars(symbols, { apikey, outputsize = 1500, onProgress
     onProgress?.({ phase: 'descargando', done: c * BATCH, total: symbols.length, chunk })
     const url =
       `${BASE}/time_series?symbol=${encodeURIComponent(chunk.join(','))}` +
-      `&interval=1day&outputsize=${outputsize}&order=ASC`
+      `&interval=1day&outputsize=${outputsize}&order=ASC&country=${encodeURIComponent(PAIS)}`
     let json
     try {
       const res = await fetch(url, { headers: cabeceras(apikey) })
@@ -74,6 +81,7 @@ export async function fetchBars(symbols, { apikey, outputsize = 1500, onProgress
         source: 'twelvedata',
         currency: d.meta?.currency,
         exchange: d.meta?.exchange,
+        micCode: d.meta?.mic_code,
       }
     }
 
