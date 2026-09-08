@@ -1,12 +1,22 @@
 import { useState } from 'react'
 import { DEFAULT_UNIVERSE, metaFor, compraFor } from '../data/universe.js'
 import { BROKERS_DEFAULT } from '../lib/brokers.js'
+import { probarClave } from '../data/twelvedata.js'
 import { fmtDate, fmtEur, fmtPct } from '../lib/format.js'
 
 export default function Settings({ settings, patch, data, onClearCache }) {
   const { cfg } = settings
   const [nuevo, setNuevo] = useState('')
   const [msg, setMsg] = useState(null)
+  const [prueba, setPrueba] = useState(null)
+  const [probando, setProbando] = useState(false)
+
+  async function comprobar() {
+    setProbando(true)
+    setPrueba(null)
+    setPrueba(await probarClave(settings.apikey))
+    setProbando(false)
+  }
 
   const setCfg = (p) => patch({ cfg: { ...cfg, ...p } })
 
@@ -79,10 +89,22 @@ export default function Settings({ settings, patch, data, onClearCache }) {
             onChange={(e) => patch({ apikey: e.target.value.trim() })}
             style={{ minWidth: 320, fontFamily: 'var(--mono)' }}
           />
-          <span className="muted small">
-            {settings.apikey ? `${settings.apikey.length} caracteres guardados` : 'sin clave: modo demostración'}
-          </span>
+          <button className="btn" onClick={comprobar} disabled={!settings.apikey || probando}>
+            {probando ? 'Comprobando…' : 'Probar la clave'}
+          </button>
+          {settings.apikey ? (
+            <span className="pill ok">guardada, {settings.apikey.length} caracteres</span>
+          ) : (
+            <span className="pill warn">sin clave: modo demostración</span>
+          )}
         </div>
+        {prueba && (
+          <div className={`banner ${prueba.ok ? 'busy' : ''}`} style={{ marginTop: 12, marginBottom: 0 }}>
+            {prueba.ok ? '✓ ' : '✗ '}
+            {prueba.mensaje}
+            {prueba.ok && ' Ya puedes pulsar «Actualizar datos» arriba.'}
+          </div>
+        )}
         <p className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
           Descargar los {settings.universe.length} activos del universo cuesta {settings.universe.length}{' '}
           peticiones y tarda unos {Math.max(0, Math.ceil(settings.universe.length / 8) * 60 - 60)} segundos

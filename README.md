@@ -79,8 +79,13 @@ así que viene marcada como sin verificar y es editable.
 
 ## Datos reales
 
-Regístrate gratis en [twelvedata.com](https://twelvedata.com/pricing) (plan Basic) y pega la clave en
-**Ajustes**. Se guarda en `localStorage`, solo en tu navegador.
+Regístrate gratis en [twelvedata.com](https://twelvedata.com/pricing) (plan Basic, sin tarjeta) y pega
+la clave en **Ajustes**. Hay un botón «Probar la clave» que gasta una sola petición y te dice si
+funciona, con el mensaje literal de Twelve Data si la rechaza.
+
+La clave se guarda en `localStorage`, solo en tu navegador, y viaja en la cabecera `Authorization` que
+recomienda su documentación, no en la URL: así no queda escrita en el historial del navegador. Su
+preflight de CORS admite esa cabecera, que es lo que hace viable usarla sin backend.
 
 Se eligió Twelve Data porque **responde con `access-control-allow-origin: *`**, que es lo que permite que
 esta app viva sin backend. Yahoo Finance no manda cabeceras CORS y contesta 429 desde el navegador;
@@ -92,8 +97,8 @@ Límites del plan gratuito y cómo se manejan:
 - **8 peticiones por minuto** → las descargas van en lotes de 8 con una espera de 61 s entre lotes.
   Actualizar los 14 activos tarda unos 60 s.
 - **800 peticiones al día** → los históricos se guardan en IndexedDB y solo se piden cuando lo pides tú.
-- El universo por defecto usa **ETFs cotizados en EE. UU.** (VGK, EWP, EFA para exposición europea)
-  porque son los que cubre el plan gratuito.
+- **Solo 3 mercados** en el plan Basic: acciones y ETFs de EE. UU., divisas y cripto. De ahí que el
+  universo sean tickers americanos (VGK, EWP, EFA cubren la exposición europea desde bolsas de EE. UU.).
 
 ## Estructura
 

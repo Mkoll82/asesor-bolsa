@@ -5,9 +5,17 @@
 // `access-control-allow-origin: *`, que es lo que permite que esta app viva
 // entera en el navegador.
 //
-// Limites del plan gratuito: 8 creditos por minuto y 800 al dia. Un simbolo en
-// una peticion de series = 1 credito. Por eso se agrupa en lotes de 8 y se
-// espera entre lotes.
+// Limites del plan gratuito (plan Basic, confirmados en su tarifario): 8
+// creditos por minuto y 800 al dia, y solo 3 mercados: acciones y ETFs de
+// EE. UU., divisas y cripto. De ahi que el universo sean tickers americanos.
+// Un simbolo en una peticion de series = 1 credito, asi que se agrupa en lotes
+// de 8 y se espera entre lotes.
+//
+// La clave va en la cabecera `Authorization`, que es el metodo que recomienda
+// su documentacion, y no en la URL: asi no queda escrita en el historial del
+// navegador ni en los registros de ningun intermediario. Se ha comprobado que
+// su preflight de CORS admite esa cabecera, que es lo que hace viable usarla
+// desde el navegador.
 const BASE = 'https://api.twelvedata.com'
 const BATCH = 8
 const WAIT_MS = 61000
@@ -24,10 +32,10 @@ export async function fetchBars(symbols, { apikey, outputsize = 1500, onProgress
     onProgress?.({ phase: 'descargando', done: c * BATCH, total: symbols.length, chunk })
     const url =
       `${BASE}/time_series?symbol=${encodeURIComponent(chunk.join(','))}` +
-      `&interval=1day&outputsize=${outputsize}&order=ASC&apikey=${encodeURIComponent(apikey)}`
+      `&interval=1day&outputsize=${outputsize}&order=ASC`
     let json
     try {
-      const res = await fetch(url)
+      const res = await fetch(url, { headers: cabeceras(apikey) })
       json = await res.json()
     } catch (e) {
       for (const s of chunk) errors[s] = `Red: ${e.message}`
@@ -76,6 +84,38 @@ export async function fetchBars(symbols, { apikey, outputsize = 1500, onProgress
   }
   onProgress?.({ phase: 'listo', done: symbols.length, total: symbols.length })
   return { data: result, errors }
+}
+
+function cabeceras(apikey) {
+  return { Authorization: `apikey ${apikey}` }
+}
+
+// Comprueba una clave con una sola peticion (1 credito de los 800 diarios).
+// Devuelve un mensaje en claro, incluido el que manda Twelve Data cuando la
+// rechaza, que suele decir exactamente que pasa.
+export async function probarClave(apikey) {
+  if (!apikey) return { ok: false, mensaje: 'No has pegado ninguna clave.' }
+  try {
+    const res = await fetch(`${BASE}/time_series?symbol=SPY&interval=1day&outputsize=1`, {
+      headers: cabeceras(apikey),
+    })
+    const json = await res.json()
+    if (json.status === 'error' || json.code >= 400) {
+      return {
+        ok: false,
+        mensaje: `Twelve Data rechaza la clave (${json.code || res.status}): ${json.message || 'sin detalle'}`,
+      }
+    }
+    const ultimo = json.values?.[0]
+    if (!ultimo) return { ok: false, mensaje: 'La clave responde pero no ha devuelto cotizaciones.' }
+    return {
+      ok: true,
+      mensaje: `Clave correcta. SPY cerro a ${ultimo.close} el ${ultimo.datetime}.`,
+      moneda: json.meta?.currency,
+    }
+  } catch (e) {
+    return { ok: false, mensaje: `No se pudo contactar con Twelve Data: ${e.message}` }
+  }
 }
 
 function sleep(ms) {
