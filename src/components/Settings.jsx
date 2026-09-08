@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DEFAULT_UNIVERSE, metaFor, compraFor } from '../data/universe.js'
+import { DEFAULT_UNIVERSE, metaFor, compraFor, isinParaBuscar } from '../data/universe.js'
 import { BROKERS_DEFAULT } from '../lib/brokers.js'
 import { probarClave } from '../data/twelvedata.js'
 import { fmtDate, fmtEur, fmtPct } from '../lib/format.js'
@@ -68,7 +68,11 @@ export default function Settings({ settings, patch, data, onClearCache }) {
     }
   }
 
-  const pendientes = settings.universe.filter((s) => !compraFor(s, settings.compras).isin)
+  // Sin confirmar = hay un candidato que copiar, pero no esta comprobado.
+  const sinConfirmar = settings.universe.filter((s) => {
+    const c = isinParaBuscar(s, settings.compras)
+    return !c.confirmado && !compraFor(s, settings.compras).propio
+  })
 
   return (
     <>
@@ -121,13 +125,16 @@ export default function Settings({ settings, patch, data, onClearCache }) {
         <p className="hint">
           Los tickers de la izquierda son de EE. UU. y sirven para <b>calcular</b>: son los que cubre el
           plan gratuito de datos. Las dos últimas columnas son para <b>comprar</b>, el equivalente UCITS
-          que sí te venden en Europa. Solo vienen rellenos los dos ISIN que puedo garantizar; el resto
-          pégalos tú desde el buscador de tu bróker, porque un ISIN inventado es comprar otra cosa.
+          que sí te venden en Europa. Dos vienen <b>confirmados</b>, porque replican el mismo índice. Los
+          otros doce traen un <b>candidato de justETF</b> como sugerencia, en gris: hay que elegir, porque
+          no existe un ETF europeo del mismo índice exacto. Búscalo en tu bróker y pega ahí el que
+          confirmes.
         </p>
-        {pendientes.length > 0 && (
+        {sinConfirmar.length > 0 && (
           <div className="banner" style={{ marginBottom: 14 }}>
-            Te faltan {pendientes.length} ISIN: {pendientes.join(', ')}. Sin ellos la señal te dirá qué
-            comprar pero no con qué código buscarlo.
+            {sinConfirmar.length} activos llevan un ISIN <b>candidato</b> sacado de justETF, sin verificar:{' '}
+            {sinConfirmar.join(', ')}. Búscalos en tu bróker y, cuando confirmes cuál es, pega el ISIN
+            aquí: pasará a estar marcado como tuyo.
           </div>
         )}
         <div className="tabla-scroll">
@@ -186,14 +193,25 @@ export default function Settings({ settings, patch, data, onClearCache }) {
                     <td>
                       <input
                         value={settings.compras[s]?.isin ?? c.isin ?? ''}
-                        placeholder={c.buscar ? 'pega el ISIN' : ''}
-                        title={c.buscar ? `Busca «${c.buscar}» en tu bróker` : c.nombre || ''}
+                        placeholder={c.candidato?.isin || 'pega el ISIN'}
+                        title={
+                          c.candidato
+                            ? `Candidato de justETF: ${c.candidato.nombre}. Verifícalo en tu bróker.`
+                            : c.nombre || ''
+                        }
                         onChange={(e) =>
                           setCompra(s, { isin: e.target.value.toUpperCase().replace(/\s+/g, '') })
                         }
                         style={{ width: 152, fontFamily: 'var(--mono)' }}
                       />
-                      {!c.isin && c.buscar && <div className="name">busca «{c.buscar}»</div>}
+                      {!c.isin && c.candidato && (
+                        <div className="name">
+                          candidato: {c.candidato.nombre} · {c.candidato.patrimonio}
+                        </div>
+                      )}
+                      {!c.isin && !c.candidato && c.buscar && (
+                        <div className="name">busca «{c.buscar}»</div>
+                      )}
                       {c.nota && <div className="name aviso">{c.nota}</div>}
                     </td>
                     <td>

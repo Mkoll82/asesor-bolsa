@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { rankAt, targetWeights } from '../lib/momentum.js'
 import { monthEndIndices, isLikelyMonthEnd } from '../lib/series.js'
 import { valuate, ordersToReach, makeOp } from '../lib/paper.js'
-import { metaFor, compraFor } from '../data/universe.js'
+import { metaFor, compraFor, isinParaBuscar } from '../data/universe.js'
 import { comparar, costeAnual } from '../lib/brokers.js'
 import { ESTADOS } from '../lib/real.js'
 import CodigoCompra from './CodigoCompra.jsx'
@@ -50,11 +50,15 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
     [orders, settings.brokers]
   )
 
-  // Activos elegidos para los que todavia no hay ISIN confirmado: sin ese
-  // codigo la senal no se puede ejecutar en el broker.
-  const sinIsin = useMemo(
+  // Activos de la cartera objetivo cuyo codigo de compra es un candidato sin
+  // verificar. Hay un ISIN que copiar, pero no esta comprobado que sea el que
+  // quieres: la app lo ofrece para buscarlo, no para fiarse de el.
+  const porVerificar = useMemo(
     () =>
-      Object.keys(target).filter((sym) => !compraFor(sym, settings.compras).isin),
+      Object.keys(target).filter((sym) => {
+        const c = isinParaBuscar(sym, settings.compras)
+        return !c.confirmado && !compraFor(sym, settings.compras).propio
+      }),
     [target, settings.compras]
   )
 
@@ -285,25 +289,27 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
         )}
       </div>
 
-      {sinIsin.length > 0 && (
+      {porVerificar.length > 0 && (
         <div className="card">
-          <h2>Te faltan códigos para poder ejecutar esto</h2>
+          <h2>Verifica estos códigos antes de comprar</h2>
           <p className="hint">
-            La cartera objetivo incluye {sinIsin.length === 1 ? 'un activo' : `${sinIsin.length} activos`} sin
-            ISIN confirmado. Sin ese código no lo vas a encontrar en el bróker: busca el equivalente UCITS
-            con el término que se indica, y pega el ISIN en Ajustes.
+            No existe un ETF europeo que replique exactamente el mismo índice que estos activos, así que
+            hay que elegir uno parecido. Estos son los candidatos más grandes según justETF, con el ISIN
+            listo para copiar, pero <b>no están verificados</b>: búscalos en tu bróker, comprueba que es
+            lo que quieres, y pega el ISIN en Ajustes. Entonces quedarán marcados como tuyos.
           </p>
           <div className="tabla-scroll">
             <table>
               <thead>
                 <tr>
                   <th>Activo</th>
-                  <th>Peso objetivo</th>
-                  <th>Qué buscar en el bróker</th>
+                  <th>Peso</th>
+                  <th>Candidato</th>
+                  <th>Por qué no es exacto</th>
                 </tr>
               </thead>
               <tbody>
-                {sinIsin.map((sym) => {
+                {porVerificar.map((sym) => {
                   const c = compraFor(sym, settings.compras)
                   return (
                     <tr key={sym}>
@@ -313,8 +319,10 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
                       </td>
                       <td>{fmtPct(target[sym], true)}</td>
                       <td style={{ textAlign: 'left' }}>
-                        {c.buscar || '—'}
-                        {c.nota && <div className="name aviso">{c.nota}</div>}
+                        <CodigoCompra symbol={sym} compras={settings.compras} />
+                      </td>
+                      <td style={{ textAlign: 'left' }} className="muted small">
+                        {c.nota || 'Índice parecido pero no idéntico.'}
                       </td>
                     </tr>
                   )

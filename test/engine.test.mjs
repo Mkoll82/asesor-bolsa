@@ -7,7 +7,7 @@ import { rankAt, targetWeights, ordersFrom, DEFAULT_CFG, breadth } from '../src/
 import { runBacktest } from '../src/lib/backtest.js'
 import { valuate, replayEquity, ordersToReach, makeOp, BUY, SELL } from '../src/lib/paper.js'
 import { demoBars } from '../src/data/demo.js'
-import { DEFAULT_UNIVERSE, compraFor } from '../src/data/universe.js'
+import { DEFAULT_UNIVERSE, compraFor, isinParaBuscar } from '../src/data/universe.js'
 import { BROKERS_DEFAULT, costeOrden, comparar, costeAnual } from '../src/lib/brokers.js'
 import {
   curvaTWR,
@@ -565,4 +565,87 @@ test('banda: en el simulador se ignora la deriva pequena pero no la entrada', ()
   const simbolos = ordenes.map((o) => o.symbol)
   assert.ok(simbolos.includes('GLD'), 'entrar en un activo nuevo se hace siempre')
   assert.ok(!simbolos.includes('SPY'), 'un 3% de deriva en SPY queda dentro de la banda')
+})
+
+test('candidatos: hay ISIN que copiar para los 14, y solo 2 confirmados', () => {
+  const confirmados = []
+  const candidatos = []
+  for (const u of DEFAULT_UNIVERSE) {
+    const c = isinParaBuscar(u.symbol)
+    assert.ok(c.isin, `${u.symbol} no tiene ningun ISIN que copiar`)
+    assert.match(c.isin, /^[A-Z]{2}[A-Z0-9]{9}\d$/, `${u.symbol}: ${c.isin} no parece un ISIN`)
+    ;(c.confirmado ? confirmados : candidatos).push(u.symbol)
+  }
+  assert.deepEqual(confirmados, ['SPY', 'QQQ'], 'solo el S&P 500 y el Nasdaq replican el mismo indice')
+  assert.equal(candidatos.length, 12)
+})
+
+test('candidatos: los ISIN no se repiten entre activos', () => {
+  const vistos = new Map()
+  for (const u of DEFAULT_UNIVERSE) {
+    const { isin } = isinParaBuscar(u.symbol)
+    assert.ok(!vistos.has(isin), `${isin} esta en ${vistos.get(isin)} y en ${u.symbol}`)
+    vistos.set(isin, u.symbol)
+  }
+})
+
+test('candidatos: lo que pega el usuario gana al candidato y queda confirmado', () => {
+  const antes = isinParaBuscar('DBC')
+  assert.equal(antes.confirmado, false)
+  assert.equal(antes.isin, 'IE00BD6FTQ80')
+
+  const despues = isinParaBuscar('DBC', { DBC: { isin: 'IE00BDFL4P12' } })
+  assert.equal(despues.isin, 'IE00BDFL4P12')
+  assert.equal(despues.confirmado, true, 'si lo has visto en tu broker, cuenta como confirmado')
+})
+
+test('candidatos: los activos con correspondencia inexacta llevan nota', () => {
+  // Si el indice no coincide, la app tiene que explicar por que. Sin la nota,
+  // un candidato parece equivalente cuando no lo es.
+  for (const sym of ['VGK', 'EFA', 'EEM', 'VNQ', 'GLD', 'DBC', 'BIL', 'EWP']) {
+    const c = compraFor(sym)
+    assert.ok(c.nota && c.nota.length > 30, `${sym} deberia explicar en que se desvia`)
+  }
+})
+
+// El ultimo digito de un ISIN es una suma de control (Luhn sobre las letras
+// convertidas a numeros). Comprobarlo detecta cualquier transcripcion mal
+// copiada, que es el error mas facil de cometer y el mas caro: un ISIN valido
+// pero equivocado es comprar otra cosa.
+function isinValido(isin) {
+  if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) return false
+  const digitos = isin
+    .slice(0, 11)
+    .split('')
+    .map((ch) => (/\d/.test(ch) ? ch : String(ch.charCodeAt(0) - 55)))
+    .join('')
+  let suma = 0
+  let doblar = true
+  for (let i = digitos.length - 1; i >= 0; i--) {
+    let d = +digitos[i]
+    if (doblar) {
+      d *= 2
+      if (d > 9) d -= 9
+    }
+    suma += d
+    doblar = !doblar
+  }
+  // Un ISIN son 12 caracteres: 2 de pais, 9 de identificador y 1 de control,
+  // asi que el digito de control esta en la posicion 11.
+  return (10 - (suma % 10)) % 10 === +isin[11]
+}
+
+test('candidatos: el digito de control de cada ISIN cuadra', () => {
+  // Casos conocidos, para comprobar que el validador funciona antes de usarlo.
+  assert.equal(isinValido('IE00B5BMR087'), true)
+  assert.equal(isinValido('IE00B5BMR088'), false, 'un digito cambiado debe fallar')
+
+  for (const u of DEFAULT_UNIVERSE) {
+    const { isin } = isinParaBuscar(u.symbol)
+    assert.ok(isinValido(isin), `${u.symbol}: ${isin} tiene el digito de control mal`)
+  }
+  // Y las alternativas que se mencionan en las notas.
+  for (const isin of ['IE0032077012', 'IE00BDFL4P12']) {
+    assert.ok(isinValido(isin), `${isin} tiene el digito de control mal`)
+  }
 })

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { compraFor } from '../data/universe.js'
+import { compraFor, isinParaBuscar } from '../data/universe.js'
 import { fmtDate, fmtEur } from '../lib/format.js'
 
 // Guia de uso que se marca a si misma.
@@ -12,7 +12,10 @@ export default function GuiaPanel({ settings, data, goTo }) {
 
   const estado = useMemo(() => {
     const reales = settings.universe.filter((s) => data?.[s]?.source === 'twelvedata').length
-    const sinIsin = settings.universe.filter((s) => !compraFor(s, settings.compras).isin)
+    const sinIsin = settings.universe.filter((s) => {
+      const c = isinParaBuscar(s, settings.compras)
+      return !c.confirmado && !compraFor(s, settings.compras).propio
+    })
     const divisaRara = settings.universe.filter(
       (s) => data?.[s]?.source === 'twelvedata' && data[s].currency && data[s].currency !== 'USD'
     )
@@ -102,16 +105,20 @@ export default function GuiaPanel({ settings, data, goTo }) {
           que se identifica por su ISIN.
           <br />
           <br />
-          En Ajustes, cada activo trae el texto de qué buscar. Lo buscas en tu bróker y pegas el ISIN que
-          te muestre. <b>Empieza por cuatro o cinco</b>, no por los catorce: el S&P 500 y el Nasdaq ya
-          están puestos, añade el de Europa, el de oro y el de liquidez. El resto, cuando la señal los
+          En Ajustes cada activo ya trae un <b>candidato</b> con su ISIN, sacado de justETF. Sirve para
+          buscarlo, no para fiarse: no existe un ETF europeo del mismo índice exacto, así que hay que
+          elegir. Búscalo en tu bróker, comprueba que es lo que quieres y pega ahí el ISIN definitivo.
+          <br />
+          <br />
+          <b>Empieza por cuatro o cinco</b>, no por los catorce: el S&P 500 y el Nasdaq vienen
+          confirmados, añade el de Europa, el de oro y el de liquidez. El resto, cuando la señal los
           pida.
         </>
       ),
       resumen:
         estado.sinIsin.length === 0
-          ? 'Todos los activos tienen su ISIN.'
-          : `${estado.conIsin} de ${estado.total} con ISIN. Faltan: ${estado.sinIsin.join(', ')}.`,
+          ? 'Todos los activos tienen un ISIN confirmado o puesto por ti.'
+          : `${estado.conIsin} de ${estado.total} confirmados. Con candidato sin verificar: ${estado.sinIsin.join(', ')}.`,
     },
     {
       n: 4,

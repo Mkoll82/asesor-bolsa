@@ -45,7 +45,7 @@ de mercado común para que las correlaciones sean realistas): sirve para ver la 
 decidir nada.
 
 ```bash
-npm test          # 45 pruebas del motor: indicadores, backtest, comisiones y contabilidad
+npm test          # 50 pruebas del motor: indicadores, backtest, comisiones, contabilidad e ISIN
 npm run build     # genera dist/ como sitio estático
 ```
 
@@ -73,9 +73,20 @@ El universo son ETFs de EE. UU. y sirven para **calcular**. No los puedes **comp
 PRIIPs exige un KID en un idioma de la UE y las gestoras estadounidenses no lo emiten, así que ni Trade
 Republic ni Revolut te venden SPY o QQQ. Hay que usar el equivalente UCITS.
 
-Cada activo lleva su ISIN UCITS con un botón de copiar, listo para pegar en el buscador del bróker.
-Solo vienen rellenos los dos que se pueden garantizar (CSPX y CNDX); el resto trae un término de
-búsqueda y el ISIN vacío, porque un ISIN inventado es comprar otra cosa. Se pegan en Ajustes.
+Los 14 activos llevan un ISIN UCITS con botón de copiar, listo para pegar en el buscador del bróker,
+pero en **dos niveles de confianza distintos**:
+
+- **Confirmado** (S&P 500 y Nasdaq 100): el ETF europeo replica el mismo índice que el americano con el
+  que se calcula la señal, así que la correspondencia no es opinable.
+- **Candidato** (los otros doce): no existe un UCITS del mismo índice y hay que *elegir*. DBC sigue el
+  DBIQ Optimum Yield y el candidato el Bloomberg Commodity; EFA sigue el MSCI EAFE y el candidato el
+  MSCI World ex USA, que incluye Canadá. Son decisiones, no búsquedas, y cada una lleva una nota
+  explicando en qué se desvía.
+
+Los candidatos salen de justETF (el fondo más grande por patrimonio en cada caso) y las pruebas validan
+el dígito de control de cada ISIN, que detecta cualquier transcripción mal copiada. Aun así hay que
+verificarlos en el bróker: cuando pegas el ISIN que ves en tu pantalla, pasa a estar marcado como tuyo
+y manda sobre el candidato.
 
 La app también compara el coste de cada rebalanceo entre brókeres, con la tarifa como fijo más
 porcentaje. La de Trade Republic (1 € por orden) es pública y estable; la de Revolut depende del plan,
