@@ -8,6 +8,7 @@ import { breadth } from './lib/momentum.js'
 import { fmtDate, fmtPct } from './lib/format.js'
 import SignalPanel from './components/SignalPanel.jsx'
 import PaperPanel from './components/PaperPanel.jsx'
+import RealPanel from './components/RealPanel.jsx'
 import AssetDetail from './components/AssetDetail.jsx'
 import BacktestPanel from './components/BacktestPanel.jsx'
 import Settings from './components/Settings.jsx'
@@ -15,6 +16,7 @@ import Settings from './components/Settings.jsx'
 const VIEWS = [
   { id: 'senal', label: 'Señal del mes' },
   { id: 'simulador', label: 'Simulador' },
+  { id: 'real', label: 'Cartera real' },
   { id: 'activo', label: 'Ficha de activo' },
   { id: 'backtest', label: 'Backtest' },
   { id: 'ajustes', label: 'Ajustes' },
@@ -201,6 +203,8 @@ export default function App() {
           <SignalPanel {...shared} />
         ) : view === 'simulador' ? (
           <PaperPanel {...shared} />
+        ) : view === 'real' ? (
+          <RealPanel {...shared} />
         ) : view === 'activo' ? (
           <AssetDetail {...shared} selected={selected} setSelected={setSelected} />
         ) : view === 'backtest' ? (

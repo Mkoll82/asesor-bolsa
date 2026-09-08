@@ -26,7 +26,12 @@ export function runBacktest(aligned, cfg = DEFAULT_CFG) {
     return { error: `Historico insuficiente: hacen falta al menos ${warmup + 25} sesiones y hay ${dates.length}.` }
   }
 
-  const monthEnds = monthEndIndices(dates, { includeIncompleteLast: false }).filter((i) => i >= warmup)
+  // `startDate` permite arrancar el backtest el dia que empezaste tu de
+  // verdad, para comparar la regla a ciegas con lo que has hecho.
+  const desde = cfg.startDate || null
+  const monthEnds = monthEndIndices(dates, { includeIncompleteLast: false }).filter(
+    (i) => i >= warmup && (!desde || dates[i] >= desde)
+  )
   if (monthEnds.length < 3) return { error: 'Menos de 3 cierres de mes utilizables.' }
 
   const comm = cfg.commissionBps / 10000

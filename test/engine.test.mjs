@@ -9,6 +9,12 @@ import { valuate, replayEquity, ordersToReach, makeOp, BUY, SELL } from '../src/
 import { demoBars } from '../src/data/demo.js'
 import { DEFAULT_UNIVERSE, compraFor } from '../src/data/universe.js'
 import { BROKERS_DEFAULT, costeOrden, comparar, costeAnual } from '../src/lib/brokers.js'
+import {
+  curvaTWR,
+  resumenReal,
+  estimacionProxy,
+  resumenDecisiones,
+} from '../src/lib/real.js'
 
 const SYMS = DEFAULT_UNIVERSE.map((u) => u.symbol)
 
@@ -393,4 +399,112 @@ test('compraFor: no inventa ISIN y lo que pega el usuario manda', () => {
   assert.equal(mio.isin, 'IE00B3VWM098')
   assert.equal(mio.verificado, true, 'si lo pega el usuario, cuenta como visto en su broker')
   assert.equal(mio.propio, true)
+})
+
+// --- Cartera real: rentabilidad con aportaciones y retiradas ----------------
+
+test('real: sin movimientos, TWR y ganancia coinciden', () => {
+  const r = resumenReal(
+    [{ date: '2026-01-31', total: 1000 }, { date: '2026-02-28', total: 1100 }],
+    [{ date: '2026-01-31', importe: 1000 }]
+  )
+  assert.ok(Math.abs(r.twr - 0.1) < 1e-12, `twr ${r.twr}`)
+  assert.ok(Math.abs(r.ganancia - 100) < 1e-9)
+  assert.equal(r.aportado, 1000)
+})
+
+test('real: una aportacion no se cuenta como ganancia', () => {
+  // 1000 -> aporto 500 -> el broker marca 1600. La estrategia gano el 10%,
+  // no el 60% que saldria de dividir 1600 entre 1000.
+  const r = resumenReal(
+    [{ date: '2026-01-31', total: 1000 }, { date: '2026-02-28', total: 1600 }],
+    [{ date: '2026-01-31', importe: 1000 }, { date: '2026-02-10', importe: 500 }]
+  )
+  assert.ok(Math.abs(r.twr - 0.1) < 1e-12, `twr ${r.twr}, esperado 0,10`)
+  assert.ok(Math.abs(r.ganancia - 100) < 1e-9, `ganancia ${r.ganancia}`)
+  assert.equal(r.aportado, 1500)
+})
+
+test('real: una retirada tampoco se cuenta como perdida', () => {
+  const r = resumenReal(
+    [{ date: '2026-01-31', total: 1000 }, { date: '2026-02-28', total: 900 }],
+    [{ date: '2026-01-31', importe: 1000 }, { date: '2026-02-10', importe: -200 }]
+  )
+  assert.ok(Math.abs(r.twr - 0.1) < 1e-12, `twr ${r.twr}, esperado 0,10`)
+  assert.ok(Math.abs(r.ganancia - 100) < 1e-9, `ganancia ${r.ganancia}`)
+  assert.equal(r.retirado, 200)
+})
+
+test('real: los periodos se encadenan', () => {
+  const c = curvaTWR(
+    [
+      { date: '2026-01-31', total: 1000 },
+      { date: '2026-02-28', total: 1100 },
+      { date: '2026-03-31', total: 1210 },
+    ],
+    []
+  )
+  assert.equal(c.length, 3)
+  assert.ok(Math.abs(c.at(-1).v - 1.21) < 1e-12, `indice ${c.at(-1).v}`)
+})
+
+test('real: cada movimiento cuenta en un solo periodo', () => {
+  // El movimiento cae justo en la fecha de la segunda valoracion: pertenece al
+  // primer periodo, no a los dos.
+  const c = curvaTWR(
+    [
+      { date: '2026-01-31', total: 1000 },
+      { date: '2026-02-28', total: 1600 },
+      { date: '2026-03-31', total: 1760 },
+    ],
+    [{ date: '2026-02-28', importe: 500 }]
+  )
+  assert.ok(Math.abs(c[1].v - 1.1) < 1e-12, `primer periodo ${c[1].v}`)
+  assert.ok(Math.abs(c[2].v - 1.21) < 1e-12, `segundo periodo ${c[2].v}`)
+})
+
+test('real: con una sola valoracion no hay curva pero si ganancia', () => {
+  const r = resumenReal([{ date: '2026-01-31', total: 1200 }], [{ date: '2026-01-02', importe: 1000 }])
+  assert.equal(r.twr, null)
+  assert.ok(Math.abs(r.ganancia - 200) < 1e-9)
+  assert.ok(Math.abs(r.gananciaPct - 0.2) < 1e-12)
+})
+
+test('real: la estimacion por proxy escala el coste con el activo americano', () => {
+  const al = alignSeries({
+    SPY: {
+      bars: [
+        { date: '2026-01-02', c: 100 },
+        { date: '2026-02-02', c: 120 },
+      ],
+    },
+  })
+  const est = estimacionProxy(
+    [{ date: '2026-01-02', symbol: 'SPY', action: 'compra', units: 10, price: 50 }],
+    al
+  )
+  // 500 € de coste y el proxy sube un 20% -> 600 €
+  assert.ok(Math.abs(est.total - 600) < 1e-9, `estimado ${est.total}`)
+})
+
+test('real: el diario mide la disciplina', () => {
+  const r = resumenDecisiones([
+    { estado: 'seguida' },
+    { estado: 'seguida' },
+    { estado: 'ignorada' },
+    { estado: 'modificada' },
+  ])
+  assert.equal(r.total, 4)
+  assert.equal(r.seguida, 2)
+  assert.ok(Math.abs(r.disciplina - 0.5) < 1e-12)
+})
+
+test('backtest: startDate arranca la regla el dia que empezaste tu', () => {
+  const al = alignSeries(demoBars(SYMS, 1500))
+  const completo = runBacktest(al, DEFAULT_CFG)
+  const desde = completo.equity[Math.floor(completo.equity.length / 2)].date
+  const parcial = runBacktest(al, { ...DEFAULT_CFG, startDate: desde })
+  assert.ok(parcial.equity[0].date >= desde, `arranca en ${parcial.equity[0].date}`)
+  assert.ok(parcial.equity.length < completo.equity.length)
+  assert.ok(Math.abs(parcial.equity[0].v - 1) < 0.02, 'la curva parcial empieza en base 1')
 })

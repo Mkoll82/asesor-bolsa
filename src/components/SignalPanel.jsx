@@ -4,6 +4,7 @@ import { monthEndIndices, isLikelyMonthEnd } from '../lib/series.js'
 import { valuate, ordersToReach, makeOp } from '../lib/paper.js'
 import { metaFor, compraFor } from '../data/universe.js'
 import { comparar, costeAnual } from '../lib/brokers.js'
+import { ESTADOS } from '../lib/real.js'
 import CodigoCompra from './CodigoCompra.jsx'
 import { fmtDate, fmtEur, fmtNum, fmtPct, signClass, fmtUnits } from '../lib/format.js'
 
@@ -82,6 +83,23 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
     setDone(`${ops.length} operaciones registradas en el simulador con fecha ${fmtDate(date)}.`)
   }
 
+  // Diario: que hiciste con la señal de este mes. Se guarda por mes, asi que
+  // volver a marcar el mismo mes sobrescribe en lugar de duplicar.
+  const mes = aligned.dates[signalIdx].slice(0, 7)
+  const decision = (settings.real.decisiones || []).find((d) => d.month === mes)
+
+  function marcar(estado) {
+    const previas = (settings.real.decisiones || []).filter((d) => d.month !== mes)
+    const entrada = {
+      month: mes,
+      signalDate: aligned.dates[signalIdx],
+      estado,
+      picks: Object.keys(target),
+      nota: decision?.nota || '',
+    }
+    patch({ real: { ...settings.real, decisiones: [...previas, entrada] } })
+  }
+
   return (
     <>
       <div className="card">
@@ -103,6 +121,25 @@ export default function SignalPanel({ settings, patch, aligned, lastIdx, priceOf
                 </span>
               ))}
           </div>
+        </div>
+
+        <div className="row" style={{ marginTop: 14, gap: 8 }}>
+          <span className="muted small">Qué has hecho con la señal de {mes}:</span>
+          {ESTADOS.map((e) => (
+            <button
+              key={e.id}
+              className={`btn small ${decision?.estado === e.id ? 'primary' : ''}`}
+              onClick={() => marcar(e.id)}
+            >
+              {e.label}
+            </button>
+          ))}
+          {decision && (
+            <span className="muted small">
+              apuntado en el diario de la cartera real
+              {decision.nota ? ` · ${decision.nota}` : ''}
+            </span>
+          )}
         </div>
 
         {drift && (

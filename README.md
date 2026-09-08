@@ -12,6 +12,7 @@ Los resultados pasados no anticipan los futuros.
 |---|---|
 | **Señal del mes** | Ordena el universo por momentum, aplica el filtro de tendencia y te dice la cartera objetivo. Un botón la ejecuta en el simulador. |
 | **Simulador** | Cartera ficticia con 10.000 € de partida: posiciones, liquidez, comisiones, curva de resultados frente a comprar y mantener, y registro de operaciones. |
+| **Cartera real** | Lo que de verdad hay en tu bróker: operaciones ejecutadas, aportaciones y retiradas, el saldo que apuntas cada mes, y el diario de si seguiste la señal o no. |
 | **Ficha de activo** | Precio con SMA 50/200, RSI 14, MACD 12-26-9, ATR y rentabilidades a 1/3/6/12 meses. |
 | **Backtest** | Prueba la regla sobre el histórico disponible: rentabilidad anual, peor caída, rotación, mes a mes y qué cartera habría tenido en cada cierre de mes. |
 | **Ajustes** | API key, universo, ventanas de momentum, exportar/importar y vaciar caché. |
@@ -43,6 +44,38 @@ decidir nada.
 npm test          # 24 pruebas del motor: indicadores, backtest y contabilidad del simulador
 npm run build     # genera dist/ como sitio estático
 ```
+
+## Medir la rentabilidad real
+
+Aquí hay dos preguntas distintas que dan números distintos, y la app calcula las dos:
+
+- **¿Funcionó la estrategia?** Rentabilidad ponderada por tiempo (TWR), que aísla el efecto de tus
+  aportaciones. Es la única comparable con el backtest o con un índice.
+- **¿Cuánto he ganado?** Valor actual menos lo aportado más lo retirado, en euros. Es la que nota tu
+  bolsillo.
+
+La distinción no es pedantería: si tienes 10.000 €, aportas 5.000 y el bróker marca 15.600, dividir
+15.600 entre 10.000 da un 56% que no has ganado. El cálculo correcto es un 3,4%. Cualquier hoja de
+cálculo que no descuente los flujos te miente en cuanto haces la primera aportación.
+
+Como el ETF UCITS que compras no está en los datos, el saldo lo aportas tú: un número al mes. A cambio,
+la app compara tu curva real con tres cosas: la regla seguida a ciegas desde el día que empezaste, la
+estimación de la estrategia pura sobre tu dinero, y la diferencia entre ambas, que es lo que cuesta el
+envoltorio UCITS y la divisa.
+
+## Qué comprar de verdad
+
+El universo son ETFs de EE. UU. y sirven para **calcular**. No los puedes **comprar**: la normativa
+PRIIPs exige un KID en un idioma de la UE y las gestoras estadounidenses no lo emiten, así que ni Trade
+Republic ni Revolut te venden SPY o QQQ. Hay que usar el equivalente UCITS.
+
+Cada activo lleva su ISIN UCITS con un botón de copiar, listo para pegar en el buscador del bróker.
+Solo vienen rellenos los dos que se pueden garantizar (CSPX y CNDX); el resto trae un término de
+búsqueda y el ISIN vacío, porque un ISIN inventado es comprar otra cosa. Se pegan en Ajustes.
+
+La app también compara el coste de cada rebalanceo entre brókeres, con la tarifa como fijo más
+porcentaje. La de Trade Republic (1 € por orden) es pública y estable; la de Revolut depende del plan,
+así que viene marcada como sin verificar y es editable.
 
 ## Datos reales
 
